@@ -1,0 +1,14 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json",
+  "name": "v10_fraud_score",
+  "position": { "x": 20, "y": 20, "z": 0, "width": 390, "height": 90, "tabOrder": 1000 },
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Fraud Exposure Score" } }, "queryRef": "fact_commercialspend.Fraud Exposure Score" }] }
+      }
+    }
+  },
+  "filterConfig": { "filters": [] }
+}
