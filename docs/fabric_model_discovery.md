@@ -10,14 +10,14 @@ This document guides the process of identifying an **existing Microsoft Fabric s
 
 | Field | Value |
 |-------|-------|
-| Fabric Capacity | `fabcmksettlement` |
-| Resource Group | `cmk-settlement-rg` |
-| Subscription ID | `7bfa54e8-38b2-49dc-9f48-98729405ecc9` |
+| Tenant | `MngEnvMCAP660444.onmicrosoft.com` |
+| Tenant ID | `b7e47691-9726-4f67-a302-e567815f3522` |
+| Fabric Capacity | `fabcmksettlement` (`cb113ec9-926c-4af4-99fe-0b5b55fb69b6`) |
+| Subscription | `ME-MngEnvMCAP660444-seankelley-2` (`c4a3460a-3527-460c-ab59-4a4c7a15646b`) |
 | Region | West US |
-| Tenant Domain | `mngenvmcap253522.onmicrosoft.com` |
-| User | `seankelley@microsoft.com` (guest in this tenant) |
+| Admin Account | `seankelley@MngEnvMCAP660444.onmicrosoft.com` |
 
-> **API access note:** Programmatic REST API access (Power BI REST, Fabric v1 API) is blocked by tenant inbound policy for cross-tenant/guest accounts. Discovery must be done via the Fabric portal UI or a native tenant account.
+> **Discovery complete (2026-07-21).** All IDs below are confirmed via API. The sections below are preserved as reference for future model additions.
 
 ---
 
@@ -36,36 +36,28 @@ Workspaces assigned to this capacity will appear in the Fabric portal sidebar.
 
 ## Step 2 — Identify Candidate Workspaces
 
-In the left nav, click **Workspaces** to see all accessible workspaces.
-
-Candidate workspaces for this project should contain:
-- A **Semantic Model** (formerly called Dataset) with transactional/payment data
-- Published Power BI **Reports** built on that model
-- Ideally already connected to a **Fabric Data Agent**
-
-### Workspace Checklist
+### ✅ Confirmed Target Workspace
 
 | Workspace Name | Workspace ID | Contains Reports | Contains Semantic Model | Fabric Data Agent? | Notes |
 |---------------|-------------|-----------------|------------------------|-------------------|-------|
-| _(fill in)_ | _(fill in)_ | ☐ | ☐ | ☐ | |
+| **VISA** | `8dd24078-9814-4e5d-a26c-3713092564bd` | ✅ | ✅ | ❌ Not yet provisioned | **Primary target** |
+
+XMLA endpoint: `powerbi://api.powerbi.com/v1.0/myorg/VISA`
 
 ---
 
 ## Step 3 — Identify Target Semantic Model
 
-Once you have a workspace, navigate to it and filter by **Semantic Model** in the item type filter.
-
-For each candidate model, record:
+### ✅ Confirmed Target Model
 
 | Field | Value |
 |-------|-------|
-| Semantic Model Name | _(fill in)_ |
-| Semantic Model ID | _(fill in)_ |
-| Workspace ID | _(fill in)_ |
-| Last Refresh | _(fill in)_ |
-| Storage Mode | Import / DirectQuery / DirectLake |
-| Tables (count) | _(fill in)_ |
-| Key Measures | _(fill in)_ |
+| Semantic Model Name | **Visa Slicer Demo v2** |
+| Semantic Model ID | `5686371f-58c7-453f-89c8-26b0e2fb7f9d` |
+| Workspace ID | `8dd24078-9814-4e5d-a26c-3713092564bd` |
+| Storage Mode | To be confirmed via XMLA |
+| Tables / Measures | Pending — browse via DAX Studio or Tabular Editor against XMLA endpoint |
+| Key Measures | Pending — populate `semantic/metadata/field_map.json` after browse |
 
 ---
 

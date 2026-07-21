@@ -35,11 +35,11 @@ Phase 5: Demo Build
 - PBIE embed token (App-Owns-Data flow)
 
 **Deliverables:**
-- [ ] `server/index.js` — Express server that serves the embed token and HTML shell
-- [ ] `frontend/index.html` — Iframe host page with `powerbi-client` loaded
-- [ ] `frontend/embed.js` — Calls `powerbi.embed()` with token from backend
-- [ ] Iframe renders the target Fabric report locally
-- [ ] `docs/local_server_setup.md` validated (setup steps confirmed working)
+- [x] `server/index.js` — Express server that serves the embed token and HTML shell
+- [x] `frontend/index.html` — Iframe host page with `powerbi-client` loaded
+- [x] `frontend/embed.js` — Calls `powerbi.embed()` with token from backend; `tokenExpired` refresh with effectiveIdentity preserved
+- [ ] Iframe renders the target Fabric report locally — **blocked: SP credentials pending**
+- [ ] `docs/local_server_setup.md` validated (setup steps confirmed working) — **blocked: SP credentials pending**
 
 **Validation:**
 > Report visible in browser at `http://localhost:3000`. No sign-in prompt. Filter pane accessible.
@@ -57,11 +57,11 @@ Phase 5: Demo Build
 **Pattern 1 source:** `build_guide.md` — Phase 1 Deliverable
 
 **Deliverables:**
-- [ ] `frontend/context-capture/captureContext.js` — reads PBIE state
-- [ ] Captures: `reportId`, `page`, `filters`, `slicers`, `selections`
-- [ ] Serializes to clean JSON
-- [ ] POST to `backend/api/context` endpoint
-- [ ] `docs/pattern1_iframe_injection.md` updated with actual field names from Fabric model
+- [x] `frontend/context-capture/captureContext.js` — reads PBIE state
+- [x] Captures: `reportId`, `page`, `filters`, `slicers`, `selections`
+- [x] Serializes to clean JSON
+- [x] POST to `backend/api/context` endpoint
+- [ ] `docs/pattern1_iframe_injection.md` updated with actual field names from Fabric model — **pending XMLA/portal model browse**
 
 **Output shape:**
 ```json
@@ -103,11 +103,11 @@ Phase 5: Demo Build
 **Pattern source:** build_guide.md — Phase 3 Deliverable
 
 **Deliverables:**
-- [ ] Azure AI Foundry Agent created with system prompt from Pattern 1
-- [ ] Tool: `query_semantic_model(question, context)` — calls Fabric Data Agent
-- [ ] `backend/foundry-agent/agent.js` — Foundry SDK client
-- [ ] Chat panel wired: user message → context capture → Foundry Agent → response
-- [ ] `docs/pattern1_iframe_injection.md` — full injection flow documented
+- [ ] Azure AI Foundry Agent created — **run `node scripts/provision-foundry-agent.js` once project endpoint is available**
+- [x] Tool: `query_semantic_model(question, context)` — implemented in `server/services/foundryAgent.js` with tool call dispatch loop
+- [x] `server/services/foundryAgent.js` — Foundry SDK client with `requires_action` polling and Fabric Data Agent routing
+- [x] Chat panel wired: user message → context capture → Foundry Agent → response
+- [ ] `docs/pattern1_iframe_injection.md` — full injection flow documented (update after live validation)
 
 **System Prompt Template:**
 ```

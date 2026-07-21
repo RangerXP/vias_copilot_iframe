@@ -56,21 +56,30 @@ The local dev server proves out the architecture before any cloud deployment.
 
 ## Prerequisites
 
-- [ ] Microsoft Fabric workspace with at least one published semantic model
-- [ ] Azure AI Foundry project (or access to create one)
-- [ ] Power BI Embedded capacity OR Premium Per User license for embed tokens
-- [ ] Node.js 20+ installed locally
-- [ ] Azure CLI installed and authenticated
-- [ ] Fabric Data Agent provisioned against target semantic model
+- [x] Microsoft Fabric workspace — VISA workspace, `Visa Slicer Demo v2` confirmed
+- [x] Power BI Embedded capacity — `fabcmksettlement` (`cb113ec9-926c-4af4-99fe-0b5b55fb69b6`)
+- [x] Node.js 20+ installed and `npm install` run
+- [x] Azure CLI installed and authenticated
+- [x] Fabric tenant policy `ElevatedGuestsTenant` enabled
+- [ ] Service principal registered in `MngEnvMCAP660444` (blocked on customer tenant admin)
+- [ ] Fabric Data Agent provisioned against `Visa Slicer Demo v2`
+- [ ] Azure AI Foundry project created
 
 ---
 
 ## Getting Started
 
-1. Read [docs/fabric_model_discovery.md](docs/fabric_model_discovery.md) — identify the target semantic model
-2. Read [docs/local_server_setup.md](docs/local_server_setup.md) — run the local PBIE server
-3. Follow [project_plan.md](project_plan.md) Sprint 1 to validate iframe context capture
-4. Follow [docs/fabric_agent_config.md](docs/fabric_agent_config.md) to wire the Fabric Data Agent
+1. Copy `.env.example` → `.env` and fill in `CLIENT_ID` + `CLIENT_SECRET` once the service principal is issued
+2. `npm run dev` — starts the local Express server on `http://localhost:3000`
+3. Read [docs/local_server_setup.md](docs/local_server_setup.md) for troubleshooting
+4. Once SP is issued: validate the iframe renders the VISA report (Sprint 1 validation)
+5. Run `node scripts/provision-foundry-agent.js` once a Foundry project endpoint is available
+
+---
+
+## Repository
+
+**GitHub:** https://github.com/RangerXP/vias_copilot_iframe
 
 ---
 
@@ -78,9 +87,11 @@ The local dev server proves out the architecture before any cloud deployment.
 
 | Sprint | Name | Status |
 |--------|------|--------|
-| Sprint 1 | Local PBIE Server + Iframe Render | **Ready to start** — all IDs confirmed |
-| Sprint 2 | Context Capture to JSON | Not Started |
-| Sprint 3 | Fabric Data Agent Integration | Not Started |
-| Sprint 4 | Foundry Agent + Context Injection | Not Started |
+| Sprint 1 | Local PBIE Server + Iframe Render | **Scaffolded** — blocked on SP credentials |
+| Sprint 2 | Context Capture to JSON | **Scaffolded** (`captureContext.js` built) |
+| Sprint 3 | Fabric Data Agent Integration | **Scaffolded** — blocked on agent provisioning |
+| Sprint 4 | Foundry Agent + Context Injection | **Scaffolded** — tool call routing + provisioning script done |
 | Sprint 5 | Semantic Query Layer | Not Started |
 | Sprint 6 | Demo Build + Talking Points | Not Started |
+
+**Auth boundary:** Path B active (SP + effectiveIdentity + context injection). Path A (user-delegated) gated on SP registration. `ElevatedGuestsTenant` Fabric policy enabled 2026-07-21.

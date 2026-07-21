@@ -170,8 +170,37 @@ Semantic Model query execution
 
 ## Security Considerations
 
-- Embed tokens are short-lived (1 hour); implement token refresh on expiry
-- Service principal credentials stored in `.env` only — never committed to git
+- Embed tokens are short-lived (1 hour); `tokenExpired` event handled in `embed.js` — refresh preserves `effectiveIdentity`
+- Service principal credentials stored in `.env` only — never committed to git (`.gitignore` enforced)
 - Fabric Data Agent access scoped to semantic model read-only
 - Context object sanitized before prompt injection (no raw user input in system prompt)
 - Foundry Agent does not have write access to any data source
+
+---
+
+## Auth Boundary — External User Access
+
+Iframe consumers are **external (B2B guest) users**. Two paths are defined:
+
+### Path B — Active (current implementation)
+
+The service principal makes all API calls. User data boundary is enforced at two levels:
+
+1. **`effectiveIdentity` in embed token** — SP generates an embed token with the user's UPN, causing the Power BI engine to enforce any RLS roles on the semantic model for that user
+2. **Context injection** — `captureContext.js` reads only what is visible in the user's filtered iframe view; the Foundry Agent is scoped to that context
+
+No user token ever reaches the backend for Fabric/Foundry API calls.
+
+### Path A — Production gate (not yet active)
+
+Requires customer tenant admin to configure Entra cross-tenant access policy (inbound B2B for the external org). Once enabled, MSAL.js can acquire guest user tokens scoped to `https://api.fabric.microsoft.com/.default` and pass them to the backend, replacing SP credentials for Fabric Data Agent calls.
+
+### Fabric Tenant Policy Status (audited 2026-07-21)
+
+| Setting | Status |
+|---------|--------|
+| `Embedding` — Embed content in apps | ✅ Enabled |
+| `ServicePrincipalAccessPermissionAPIs` — SP can call Fabric public APIs | ✅ Enabled |
+| `AllowGuestUserToAccessSharedContent` — Guest users can access Microsoft Fabric | ✅ Enabled |
+| `ElevatedGuestsTenant` — Guest users can browse and access Fabric content | ✅ **Enabled 2026-07-21** |
+| Entra cross-tenant B2B inbound default policy | ✅ Open (allows all) |
