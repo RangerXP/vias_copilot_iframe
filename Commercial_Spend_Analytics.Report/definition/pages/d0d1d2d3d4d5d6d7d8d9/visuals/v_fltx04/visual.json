@@ -7,7 +7,7 @@
     "query": {
       "queryState": {
         "X": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "fact_filtersession"}}, "Property": "SessionEventType"}}, "queryRef": "fact_filtersession.SessionEventType"}]},
-        "Y": {"projections": [{"field": {"Aggregation": {"Function": "Count", "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "fact_filtersession"}}, "Property": "SessionId"}}}}, "queryRef": "Count(fact_filtersession.SessionId)"}]}
+        "Y": {"projections": [{"field": {"Aggregation": {"Function": 5, "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "fact_filtersession"}}, "Property": "SessionId"}}}}, "queryRef": "Count(fact_filtersession.SessionId)"}]}
       }
     }
   },
