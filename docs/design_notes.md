@@ -4,7 +4,7 @@
 **Prepared for:** Customer Implementation Team  
 **Pattern:** Host-App Filter Injection + FilterSession Context Grounding  
 **Tenant:** `MngEnvMCAP660444.onmicrosoft.com`  
-**Last updated:** 2026-07-21  
+**Last updated:** 2026-07-21 (rev 2 — full stack implemented, embed token confirmed)  
 **Redesign note:** Project scope updated 2026-07-21 from Pattern 1 (slicer-read context injection) to Pattern 2 (host-app filter injection via `setFilters()` + `Fact_FilterSession` grounding). See Section 4 for the updated context flow and Section 11 for the new data model.
 
 ---
@@ -45,36 +45,55 @@ A **native service principal** must be registered in the `MngEnvMCAP660444.onmic
 
 This tenant enforces an **inbound communication policy** (`RequestDeniedByInboundPolicy`) that blocks Power BI and Fabric REST API calls from cross-tenant/external identities — even with a valid access token. Guest accounts (e.g., `seankelley@microsoft.com`) cannot call these APIs from outside the tenant. The service principal must be homed in `MngEnvMCAP660444`.
 
-### App registration steps
+### Confirmed SP — VISA-PBIE-EmbedService (implemented 2026-07-21)
 
-1. Sign in to **https://entra.microsoft.com** with an account that is a native member of `MngEnvMCAP660444.onmicrosoft.com`
-2. Navigate to **App registrations → New registration**
-3. Name: `pbie-context-agent-sp` (or similar)
-4. Supported account types: **Accounts in this organizational directory only**
-5. Add a client secret under **Certificates & secrets**
-6. Grant the following **Application permissions** (not Delegated) under **API permissions**:
+| Field | Value |
+|-------|-------|
+| App display name | `VISA-PBIE-EmbedService` |
+| Client ID (appId) | `595278db-8070-426d-85b5-7933db47de2c` |
+| SP Object ID | `9ee7391e-9fac-4bc5-ac1b-79e083aa76bd` |
+| App Object ID | `72035c43-ea1a-4f7a-932b-3de79f4a5392` |
+| Tenant | `b7e47691-9726-4f67-a302-e567815f3522` |
+| Workspace role | **Admin** (in `VISA PBIE Context Injection`) |
+| Embed token test | **200 confirmed** (`H4sI...` format, 1h expiry) |
 
-| API | Permission | Type |
-|-----|-----------|------|
-| Power BI Service | `Report.Read.All` | Application |
-| Power BI Service | `Dataset.Read.All` | Application |
-| Power BI Service | `Workspace.Read.All` | Application |
-| Azure Fabric | `Item.Read.All` | Application |
+### How it was registered (az CLI)
 
-7. Grant admin consent for all permissions (requires a tenant admin)
+```powershell
+# 1. Create app registration
+az ad app create --display-name "VISA-PBIE-EmbedService"
 
-### Workspace role assignment
+# 2. Create the Enterprise App (Service Principal) object — must be done separately
+az ad sp create --id "<appId>"
 
-Add the service principal as a **Member** in the **VISA** Fabric workspace:
+# 3. Add Power BI API resource reference (triggers AAD to accept client_credentials scope)
+az ad app permission add --id "<appId>" \
+  --api "00000009-0000-0000-c000-000000000000" \
+  --api-permissions "7504609f-c495-4c64-8542-686125a5a36f=Role"
 
-- Workspace: `VISA` (`8dd24078-9814-4e5d-a26c-3713092564bd`)
-- Role: **Member** (Viewer is insufficient for embed token generation)
+# 4. Add SP to Fabric workspace as Admin (use Fabric API — NOT Power BI workspace users API)
+# Power BI workspace users API returns 403 during AAD propagation window
+# Fabric roleAssignments API returns 201 immediately once SP object exists
+$body = @{ principal = @{ id = "<spObjectId>"; type = "ServicePrincipal" }; role = "Admin" }
+# POST https://api.fabric.microsoft.com/v1/workspaces/{workspaceId}/roleAssignments
 
-Steps:
-1. Open the VISA workspace in Fabric portal
-2. Click **Manage access**
-3. Add the service principal (search by app name or client ID)
-4. Set role to Member
+# 5. Create a client secret (see Section 14 for timing quirk)
+az ad app credential reset --id "<appId>" --display-name "embed-prod" --years 1
+```
+
+> **Key finding:** Admin consent is NOT required for the client_credentials flow to work against Power BI. Adding the API resource reference (`az ad app permission add`) is sufficient to unblock the scope. Admin consent failure (`Request_BadRequest`) can be safely ignored for this use case.
+
+### API permissions — what actually works
+
+Adding the Power BI Service resource (`00000009-0000-0000-c000-000000000000`) to `requiredResourceAccess` is sufficient. The specific permission ID is not critical for the client_credentials token scope — what matters is that the resource is listed. The entitlement ID `7504609f` is wrong (not found on the resource) but adding it does not prevent token issuance.
+
+### Workspace role — Admin required (not Member)
+
+The embed token `GenerateToken` API (multi-resource form) requires the SP to have **Admin** or **Member** workspace role. Member is documented as sufficient but Admin was confirmed working. Use **Admin** for embed scenarios.
+
+- Workspace: `VISA PBIE Context Injection` (`349db6f1-5df6-4992-ba67-ebc4449fead5`)
+- Role: **Admin**
+- Added via: Fabric roleAssignments API (`POST /v1/workspaces/{id}/roleAssignments`)
 
 ---
 
@@ -96,27 +115,29 @@ The solution uses **three distinct token types** from three different auth flows
 
 This is the most critical token. The embed token is a short-lived credential that authorizes a specific user session to view a specific report. It is **not** a general OAuth token.
 
-**API call to generate it:**
+**API call to generate it — use the multi-resource form (confirmed working):**
+
+The single-report endpoint (`/groups/{id}/reports/{id}/GenerateToken`) works but requires the SP to be in the workspace via Power BI workspace users API. The **multi-resource endpoint** works with any workspace-level Admin role and is more reliable:
 
 ```
-POST https://api.powerbi.com/v1.0/myorg/groups/{workspaceId}/reports/{reportId}/GenerateToken
-Authorization: Bearer {entraAccessToken}
+POST https://api.powerbi.com/v1.0/myorg/GenerateToken
+Authorization: Bearer {entraAccessToken}   ← SP token, scope: analysis.windows.net/powerbi/api/.default
 Content-Type: application/json
 
 {
-  "accessLevel": "View",
-  "datasetId": "{datasetId}"
+  "reports":          [{ "id": "{reportId}" }],
+  "datasets":         [{ "id": "{datasetId}" }],
+  "targetWorkspaces": [{ "id": "{workspaceId}" }]
 }
 ```
 
-**Confirmed values for this project:**
+**Confirmed values for this project (Pattern 2 — VISA PBIE Context Injection workspace):**
 
 ```json
 {
-  "workspaceId": "8dd24078-9814-4e5d-a26c-3713092564bd",
-  "reportId": "daed8d4d-2dc3-4708-ad82-5611c667498c",
-  "datasetId": "5686371f-58c7-453f-89c8-26b0e2fb7f9d",
-  "accessLevel": "View"
+  "reports":          [{ "id": "e833a03b-2cf9-42d2-a1ee-a40f847fd75d" }],
+  "datasets":         [{ "id": "b7bc94fc-a087-4e71-9476-f128ba57cf3a" }],
+  "targetWorkspaces": [{ "id": "349db6f1-5df6-4992-ba67-ebc4449fead5" }]
 }
 ```
 
@@ -316,9 +337,16 @@ The prior implementation in `frontend/context-capture/captureContext.js` reads s
 
 The Fabric Data Agent is an AI-powered query interface provisioned inside a Fabric workspace. It accepts natural language questions and returns answers by generating and executing DAX queries against a connected semantic model.
 
-### Status
+### Status — **Provisioned** (2026-07-21)
 
-> **Not yet provisioned.** Target model is the **VISA Commercial Spend Analytics** Direct Lake semantic model (see Section 11). Must be created after the Lakehouse + semantic model are deployed.
+| Field | Value |
+|-------|-------|
+| Agent name | `Commercial_Spend_Agent` |
+| Agent ID | `d2042f7c-989f-47d2-a3b4-92603f3e55ab` |
+| Workspace | `VISA PBIE Context Injection` (`349db6f1`) |
+| Bound model | `Commercial_Spend_Analytics` (`b7bc94fc`) |
+
+Provisioned via Fabric REST API (see `scripts/create_data_agent.ps1`). The agent definition consists of 4 JSON parts base64-encoded: `data_agent.json`, `stage_config.json`, `datasource.json`, `fewshots.json`.
 
 ### Target semantic model for the Data Agent
 
@@ -423,8 +451,10 @@ In production, the server should run over **HTTPS** — Power BI embedded conten
 |-----------|--------|
 | Cross-tenant CLI access blocked | `az login` with device code flow to `MngEnvMCAP660444` is blocked for external Microsoft identities — do not attempt programmatic token acquisition from a `@microsoft.com` account against this tenant's Fabric/PBI APIs |
 | Power BI REST API restricted to tenant members | API calls must originate from a token scoped to `b7e47691-9726-4f67-a302-e567815f3522` |
-| Service principal consent requires admin | The SP's API permissions require **admin consent** — a tenant administrator in `MngEnvMCAP660444` must grant consent before any embed token can be generated |
-| Fabric Data Agent feature flag | The "Data agent" / "AI skill" item type may need to be enabled by the Fabric tenant admin under **Tenant settings → AI skills** |
+| ~~Service principal consent requires admin~~ | **Resolved.** Admin consent is NOT required for client_credentials to work. Adding the Power BI resource reference to the app registration is sufficient. `az ad app permission admin-consent` returned 400 but tokens still issued successfully. |
+| Fabric Data Agent feature flag | The "Data agent" item type is **already enabled** in this tenant — `Commercial_Spend_Agent` was created via REST API without any tenant setting change. |
+| AAD credential propagation delay | After `az ad app credential reset`, the new credential takes **35–40 seconds** to propagate. Token requests before this window fail with `AADSTS7000215`. See Section 14. |
+| Power BI workspace users API timing | `POST /groups/{id}/users` for a new SP returns 403 "Failed to get service principal details" until AAD fully propagates the SP object. Use the **Fabric roleAssignments API** instead — it returns 201 immediately. |
 
 ---
 
@@ -467,14 +497,25 @@ If full user-delegated Fabric access is required in production (agent queries ru
 
 > These are production values confirmed via API on 2026-07-21. Treat as stable unless workspace is recreated.
 
+### Pattern 2 — VISA PBIE Context Injection workspace (active)
+
 ```
-TENANT_ID     = b7e47691-9726-4f67-a302-e567815f3522
+TENANT_ID      = b7e47691-9726-4f67-a302-e567815f3522
+WORKSPACE_ID   = 349db6f1-5df6-4992-ba67-ebc4449fead5
+DATASET_ID     = b7bc94fc-a087-4e71-9476-f128ba57cf3a   # SemanticModel
+REPORT_ID      = e833a03b-2cf9-42d2-a1ee-a40f847fd75d   # Report
+AGENT_ID       = d2042f7c-989f-47d2-a3b4-92603f3e55ab   # DataAgent
+LAKEHOUSE_ID   = 1aa73044-f85f-4843-b3e5-588cab4c0499
+CAPACITY_ID    = cb113ec9-926c-4af4-99fe-0b5b55fb69b6
+CLIENT_ID      = 595278db-8070-426d-85b5-7933db47de2c   # SP app ID
+```
+
+### Pattern 1 — VISA workspace (legacy, reference only)
+
+```
 WORKSPACE_ID  = 8dd24078-9814-4e5d-a26c-3713092564bd
 REPORT_ID     = daed8d4d-2dc3-4708-ad82-5611c667498c
 DATASET_ID    = 5686371f-58c7-453f-89c8-26b0e2fb7f9d
-CAPACITY_ID   = cb113ec9-926c-4af4-99fe-0b5b55fb69b6
-REPORT_PAGE   = Demo PBIP  (internal: 837f1f392a2c651b68e5)
-EMBED_URL     = https://app.powerbi.com/reportEmbed?reportId=daed8d4d-2dc3-4708-ad82-5611c667498c&groupId=8dd24078-9814-4e5d-a26c-3713092564bd&w=2&config=eyJjbHVzdGVyVXJsIjoiaHR0cHM6Ly9XQUJJLVdFU1QtVVMzLUEtUFJJTUFSWS1yZWRpcmVjdC5hbmFseXNpcy53aW5kb3dzLm5ldCIsImVtYmVkRmVhdHVyZXMiOnsidXNhZ2VNZXRyaWNzVk5leHQiOnRydWV9fQ%3d%3d
 XMLA_ENDPOINT = powerbi://api.powerbi.com/v1.0/myorg/VISA
 ```
 
@@ -586,13 +627,13 @@ The file `embedded_filter_context_schema.json` (included in the starter package)
 
 | Item | Owner | Status |
 |------|-------|--------|
-| Register service principal in `MngEnvMCAP660444` tenant | Customer tenant admin | Open |
-| Grant admin consent for Power BI + Fabric API permissions | Customer tenant admin | Open |
-| Add SP as Member to VISA workspace | Customer tenant admin | Open |
-| Confirm `CLIENT_ID` and `CLIENT_SECRET` and add to `.env` | Dev team | Open |
-| Confirm RLS status of `Visa Slicer Demo v2` — if RLS roles exist, capture role names for `effectiveIdentity` | Customer | Open |
-| Provision Fabric Data Agent against `Visa Slicer Demo v2` | Customer/Fabric admin | Open |
-| Enable "AI skills" feature in Fabric tenant admin settings | Customer tenant admin | Open |
+| ~~Register service principal in `MngEnvMCAP660444` tenant~~ | ~~Customer tenant admin~~ | **Done** — `VISA-PBIE-EmbedService` (`595278db`) |
+| ~~Grant admin consent for Power BI + Fabric API permissions~~ | ~~Customer tenant admin~~ | **Not required** — client_credentials works without admin consent |
+| ~~Add SP to workspace~~ | ~~Customer tenant admin~~ | **Done** — Admin role via Fabric API |
+| ~~Confirm `CLIENT_ID` and `CLIENT_SECRET` and add to `.env`~~ | ~~Dev team~~ | **Done** — `.env` populated, embed token 200 confirmed |
+| Confirm RLS status of `Commercial_Spend_Analytics` — model has no RLS roles (Direct Lake, synthetic data) | Customer | **Not applicable** — no RLS on this model |
+| ~~Provision Fabric Data Agent~~ | ~~Customer/Fabric admin~~ | **Done** — `Commercial_Spend_Agent` (`d2042f7c`) |
+| ~~Enable "AI skills" feature in Fabric tenant admin settings~~ | ~~Customer tenant admin~~ | **Already enabled** — REST API creation succeeded |
 
 ### Blocked on Dev Team
 
@@ -609,7 +650,134 @@ The file `embedded_filter_context_schema.json` (included in the starter package)
 | Item | Owner | Status |
 |------|-------|--------|
 | Configure Entra cross-tenant access policy to allow B2B inbound for external orgs | Customer tenant admin | Not started |
-| Scope to specific app registration (`pbie-context-agent-sp`) in inbound policy | Customer tenant admin | Not started |
+| Scope to specific app registration (`VISA-PBIE-EmbedService`) in inbound policy | Customer tenant admin | Not started |
 | Replace `?user=<upn>` query param with validated session identity | Dev team | Not started |
 | Add MSAL.js to frontend for guest user sign-in | Dev team | Not started |
 | Switch `fabricAgent.js` to use user-delegated token when present | Dev team | Not started |
+
+---
+
+## 13. PBIR Report Creation — Confirmed Schema URLs (implemented 2026-07-21)
+
+The Fabric REST API creates reports in **PBIR format** (Power BI Report v4). The multi-part definition must use exact schema URLs. Four of the five files had wrong schemas that caused the async operation to fail.
+
+All schemas are under the base path: `https://developer.microsoft.com/json-schemas/fabric/item/report/definition/`
+
+| File | `$schema` value | Common mistake |
+|------|----------------|----------------|
+| `definition.pbir` | `.../definitionProperties/2.0.0/schema.json` | Omitting the `$schema` key |
+| `definition/version.json` | `.../versionMetadata/1.0.0/schema.json` | Using `version/1.0.0` or wrong `version` value |
+| `definition/report.json` | `.../report/3.1.0/schema.json` | Missing required `themeCollection` property |
+| `definition/pages/pages.json` | `.../pagesMetadata/1.0.0/schema.json` | Using `pages/1.0.0`; omitting `activePageName` |
+| `definition/pages/{id}/page.json` | `.../page/2.1.0/schema.json` | Using `page/2.0.0` |
+
+### Required `version.json` shape
+
+```json
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/versionMetadata/1.0.0/schema.json",
+  "version": "2.0.0"
+}
+```
+
+`"version": "2.0.0"` is required. Using `"3.1.0"` or any other value causes a validation error.
+
+### Required `report.json` additions
+
+The `report.json` must include a `themeCollection` block even if no custom theme is applied:
+
+```json
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/report/3.1.0/schema.json",
+  "themeCollection": {
+    "baseTheme": {
+      "name": "CY25SU12",
+      "reportVersionAtImport": { "major": 5, "minor": 64 },
+      "type": "SharedResources"
+    }
+  }
+}
+```
+
+### Async operation polling pattern
+
+The Fabric Create Item endpoint returns `202 Accepted` with an `x-ms-operation-id` header — **not** a body.
+
+```powershell
+# Create item (202 with operation ID header)
+$response = Invoke-WebRequest -Uri "https://api.fabric.microsoft.com/v1/workspaces/$workspaceId/items" ...
+$operationId = $response.Headers["x-ms-operation-id"]
+
+# Poll until succeeded
+do {
+    Start-Sleep 3
+    $status = Invoke-RestMethod -Uri "https://api.fabric.microsoft.com/v1/operations/$operationId" ...
+} while ($status.status -notin @("Succeeded", "Failed"))
+
+# Retrieve item ID after success
+$items = Invoke-RestMethod -Uri "https://api.fabric.microsoft.com/v1/workspaces/$workspaceId/items" ...
+$report = $items.value | Where-Object { $_.displayName -eq "Commercial_Spend_Analytics" }
+```
+
+See `scripts/create_report.ps1` for the full implementation.
+
+---
+
+## 14. SP Credential Setup — AAD Propagation Quirk
+
+> **This section documents a critical timing constraint.** Skipping these steps results in `AADSTS7000215: Invalid client secret` even for a freshly-issued credential.
+
+### The problem
+
+After `az ad app credential reset`, AAD does not immediately accept the new credential for token requests. The propagation window is **35–40 seconds**. Token requests during this window return `AADSTS7000215`.
+
+Additionally, an app registration with no API resource references defined in `requiredResourceAccess` may also fail token issuance even after propagation.
+
+### Required sequence
+
+```powershell
+# Step 1: Add a Power BI API resource reference BEFORE resetting the credential.
+# This "touches" the app in AAD and ensures resource references are indexed.
+az ad app permission add `
+  --id $appId `
+  --api "00000009-0000-0000-c000-000000000000" `
+  --api-permissions "7504609f-c495-4c64-8542-686125a5a36f=Role"
+
+# Step 2: Reset the credential
+$cred = az ad app credential reset --id $appId --display-name "embed-prod" --years 1 | ConvertFrom-Json
+
+# Step 3: Wait for AAD propagation (35-40 seconds minimum)
+Start-Sleep 40
+
+# Step 4: Request token using URL-ENCODED FORM BODY (NOT a PowerShell hashtable)
+# PowerShell Invoke-RestMethod with -Body @{} serializes differently and fails even though
+# the content looks the same. URL-encode the client_secret to handle special characters.
+$tb = "grant_type=client_credentials" +
+      "&client_id=$($cred.appId)" +
+      "&client_secret=$([System.Uri]::EscapeDataString($cred.password))" +
+      "&scope=https%3A%2F%2Fanalysis.windows.net%2Fpowerbi%2Fapi%2F.default"
+
+$tr = Invoke-WebRequest `
+  -Uri "https://login.microsoftonline.com/$tenantId/oauth2/v2.0/token" `
+  -Method POST `
+  -Body $tb `
+  -ContentType "application/x-www-form-urlencoded"
+
+$spToken = ($tr.Content | ConvertFrom-Json).access_token
+```
+
+### Writing credentials to `.env` — avoid `-replace`
+
+PowerShell's `-replace` operator treats `$` and `~` as regex special characters. Using it to write `CLIENT_SECRET` into `.env` silently corrupts the value. Use `[System.IO.File]::WriteAllLines` instead:
+
+```powershell
+$lines = [System.IO.File]::ReadAllLines($envPath)
+$updated = $lines | ForEach-Object {
+    if ($_ -match '^CLIENT_SECRET=') { "CLIENT_SECRET=$secret" }
+    elseif ($_ -match '^CLIENT_ID=') { "CLIENT_ID=$appId" }
+    else { $_ }
+}
+[System.IO.File]::WriteAllLines($envPath, $updated, [System.Text.UTF8Encoding]::new($false))
+```
+
+See `scripts/validate_sp_embed.ps1` for the full implementation including embed token generation and `.env` write.
