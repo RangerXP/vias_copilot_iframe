@@ -1,9 +1,19 @@
 let embeddedReport = null;
 
+// Expose the authenticated user's UPN so RLS is enforced on the embed token.
+// In production this should come from a validated session (e.g. MSAL.js ID token).
+// For dev/demo: set window.PBIE_USER_UPN before this script loads, or pass via a
+// server-side rendered meta tag.
+function getUserUpn() {
+  return window.PBIE_USER_UPN || null;
+}
+
 async function loadReport() {
   let tokenData;
   try {
-    const res = await fetch('/api/embed-token');
+    const upn = getUserUpn();
+    const url = upn ? `/api/embed-token?user=${encodeURIComponent(upn)}` : '/api/embed-token';
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`Embed token request failed: ${res.status}`);
     tokenData = await res.json();
   } catch (err) {

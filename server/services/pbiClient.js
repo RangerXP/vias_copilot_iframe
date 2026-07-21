@@ -25,12 +25,32 @@ async function getPbiAccessToken() {
 
 /**
  * Generate a PBIE embed token for App-Owns-Data embedding.
+ *
+ * @param {{ workspaceId: string, reportId: string, datasetId: string, userIdentity?: { username: string, roles?: string[] } }} params
+ *   userIdentity — when provided, embeds an effectiveIdentity so RLS is enforced for that user.
+ *                  username should be the user's UPN (e.g. user@contoso.com).
+ *                  roles is optional; required only if the model has RLS roles defined.
+ *
  * Returns { accessToken, tokenId, expiration, embedUrl, reportId }
  */
-export async function getEmbedToken({ workspaceId, reportId, datasetId }) {
+export async function getEmbedToken({ workspaceId, reportId, datasetId, userIdentity }) {
   const accessToken = await getPbiAccessToken();
 
   const url = `https://api.powerbi.com/v1.0/myorg/groups/${workspaceId}/reports/${reportId}/GenerateToken`;
+
+  // Build request body — include effectiveIdentity when a user identity is supplied.
+  // This enforces RLS on the semantic model for external/guest users.
+  const body = { accessLevel: 'View', datasetId };
+
+  if (userIdentity?.username) {
+    body.identities = [
+      {
+        username: userIdentity.username,
+        datasets: [datasetId],
+        ...(userIdentity.roles?.length ? { roles: userIdentity.roles } : {})
+      }
+    ];
+  }
 
   const response = await fetch(url, {
     method: 'POST',
@@ -38,7 +58,7 @@ export async function getEmbedToken({ workspaceId, reportId, datasetId }) {
       Authorization: `Bearer ${accessToken}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ accessLevel: 'View', datasetId })
+    body: JSON.stringify(body)
   });
 
   if (!response.ok) {

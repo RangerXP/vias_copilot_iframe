@@ -331,6 +331,41 @@ In production, the server should run over **HTTPS** — Power BI embedded conten
 
 ---
 
+## 8a. External User Auth Boundary — Pattern 1 Design Decision
+
+The iframe is consumed by **external users** (guests) who are not native members of `MngEnvMCAP660444`. Because the tenant's inbound communication policy (`RequestDeniedByInboundPolicy`) blocks cross-tenant API calls, external user credentials **cannot** be used to call Fabric or Power BI REST APIs directly from the backend.
+
+**This is the primary reason Pattern 1 (context injection) exists.**
+
+### How the user data boundary is enforced without delegated credentials
+
+| Boundary mechanism | How it works | Requires |
+|-------------------|-------------|----------|
+| **Effective identity in embed token** | SP generates an embed token with the user's UPN as `effectiveIdentity` — the Power BI engine enforces any RLS roles defined on the semantic model for that user | RLS roles defined on the model |
+| **Context injection layer** | `captureContext.js` reads only what is currently visible in the user's filtered iframe. The Foundry Agent receives only that slice of context — it cannot query data outside the user's current view | Pattern 1 implementation (done) |
+
+Together these two mechanisms scope the AI agent's data access to exactly what the user can see, without requiring the external user's token to reach Fabric APIs.
+
+### Production path — enabling full delegated access for external users (Path A)
+
+If full user-delegated Fabric access is required in production (agent queries run as the user, not the SP), the tenant admin must:
+
+1. **Entra ID → External Identities → Cross-tenant access settings**
+2. For each external tenant (e.g. `microsoft.com`): configure **Inbound** → B2B collaboration → **Allow** for the specific app registration (`pbie-context-agent-sp`)
+3. This removes the `RequestDeniedByInboundPolicy` error for those external identities
+4. Once enabled: add MSAL.js to the frontend, acquire Fabric-scoped tokens for the signed-in guest user, and pass them to the backend via `Authorization` header
+
+**This is a tenant admin action. No code change unblocks it.**
+
+### Current implementation (Path B — active)
+
+- SP makes all Fabric/Foundry API calls
+- Embed token includes `effectiveIdentity` (user's UPN) when provided → RLS enforced at report layer
+- Context injection constrains agent queries to the user's visible report state
+- User identity is passed as a query param to `/api/embed-token?user=<upn>` (to be replaced with a validated session token before production)
+
+---
+
 ## 9. Confirmed Resource IDs
 
 > These are production values confirmed via API on 2026-07-21. Treat as stable unless workspace is recreated.
@@ -350,15 +385,34 @@ XMLA_ENDPOINT = powerbi://api.powerbi.com/v1.0/myorg/VISA
 
 ## 10. Implementation Checklist (Pre-Sprint 1)
 
+### Blocked on Customer Tenant Admin
+
 | Item | Owner | Status |
 |------|-------|--------|
 | Register service principal in `MngEnvMCAP660444` tenant | Customer tenant admin | Open |
 | Grant admin consent for Power BI + Fabric API permissions | Customer tenant admin | Open |
 | Add SP as Member to VISA workspace | Customer tenant admin | Open |
 | Confirm `CLIENT_ID` and `CLIENT_SECRET` and add to `.env` | Dev team | Open |
-| Confirm RLS status of `Visa Slicer Demo v2` | Customer | Open |
+| Confirm RLS status of `Visa Slicer Demo v2` — if RLS roles exist, capture role names for `effectiveIdentity` | Customer | Open |
 | Provision Fabric Data Agent against `Visa Slicer Demo v2` | Customer/Fabric admin | Open |
 | Enable "AI skills" feature in Fabric tenant admin settings | Customer tenant admin | Open |
+
+### Blocked on Dev Team
+
+| Item | Owner | Status |
+|------|-------|--------|
 | Create Azure AI Foundry project | Dev team | Open |
 | Assign SP **Azure AI Developer** role on Foundry project | Dev team | Open |
+| Run `node scripts/provision-foundry-agent.js` to create agent | Dev team | Open (requires Foundry project) |
+| Add `FOUNDRY_AGENT_ID` to `.env` | Dev team | Open |
 | Install Node.js 20+ locally | Dev team | Open |
+
+### Production Gate — External User Auth (Path A, not required for demo)
+
+| Item | Owner | Status |
+|------|-------|--------|
+| Configure Entra cross-tenant access policy to allow B2B inbound for external orgs | Customer tenant admin | Not started |
+| Scope to specific app registration (`pbie-context-agent-sp`) in inbound policy | Customer tenant admin | Not started |
+| Replace `?user=<upn>` query param with validated session identity | Dev team | Not started |
+| Add MSAL.js to frontend for guest user sign-in | Dev team | Not started |
+| Switch `fabricAgent.js` to use user-delegated token when present | Dev team | Not started |
