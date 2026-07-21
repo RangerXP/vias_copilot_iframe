@@ -1,0 +1,66 @@
+table dim_client
+	lineageTag: 88f61e05-7fcd-4fbf-9030-af6f0fa25e94
+	sourceLineageTag: [dbo].[dim_client]
+
+	column ClientKey
+		dataType: int64
+		formatString: 0
+		lineageTag: c6386c39-1941-41dd-8500-53c370742536
+		sourceLineageTag: ClientKey
+		summarizeBy: count
+		sourceColumn: ClientKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column ClientName
+		dataType: string
+		lineageTag: 0c6493b1-955e-4213-abc7-7566c0b1f8a8
+		sourceLineageTag: ClientName
+		summarizeBy: none
+		sourceColumn: ClientName
+
+		annotation SummarizationSetBy = Automatic
+
+	column Industry
+		dataType: string
+		lineageTag: 43fae1b0-b9c6-475f-a6b4-5ce91470bfcb
+		sourceLineageTag: Industry
+		summarizeBy: none
+		sourceColumn: Industry
+
+		annotation SummarizationSetBy = Automatic
+
+	column GlobalAccountTier
+		dataType: string
+		lineageTag: 34264677-9f48-4045-8a55-bb41a1ff7c1b
+		sourceLineageTag: GlobalAccountTier
+		summarizeBy: none
+		sourceColumn: GlobalAccountTier
+
+		annotation SummarizationSetBy = Automatic
+
+	column HomeRegion
+		dataType: string
+		lineageTag: a677e551-b1fe-4258-8263-8670efb2335e
+		sourceLineageTag: HomeRegion
+		summarizeBy: none
+		sourceColumn: HomeRegion
+
+		annotation SummarizationSetBy = Automatic
+
+	column AccountManagerCode
+		dataType: string
+		lineageTag: bd2f56c7-429e-4248-9d13-2598af9596c4
+		sourceLineageTag: AccountManagerCode
+		summarizeBy: none
+		sourceColumn: AccountManagerCode
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_client = entity
+		mode: directLake
+		source
+			entityName: dim_client
+			schemaName: dbo
+			expressionSource: 'DirectLake - Commercial_Spend_Analytics'
+

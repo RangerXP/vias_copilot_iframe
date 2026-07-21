@@ -1,0 +1,49 @@
+table dim_mcc
+	lineageTag: 59c25546-6d79-409a-8541-897328026378
+	sourceLineageTag: [dbo].[dim_mcc]
+
+	column MCCKey
+		dataType: int64
+		formatString: 0
+		lineageTag: eaec211d-4778-4e37-8acc-3e3b656285d4
+		sourceLineageTag: MCCKey
+		summarizeBy: count
+		sourceColumn: MCCKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column MCCCode
+		dataType: int64
+		formatString: 0
+		lineageTag: 776fb87b-cdbe-44cb-a554-7da525747e9d
+		sourceLineageTag: MCCCode
+		summarizeBy: count
+		sourceColumn: MCCCode
+
+		annotation SummarizationSetBy = Automatic
+
+	column MCCDescription
+		dataType: string
+		lineageTag: f772d014-47ca-403a-8a7f-7e63477675f9
+		sourceLineageTag: MCCDescription
+		summarizeBy: none
+		sourceColumn: MCCDescription
+
+		annotation SummarizationSetBy = Automatic
+
+	column MCCGroup
+		dataType: string
+		lineageTag: 2376ca82-d6ee-47a8-9d68-577316ab21d2
+		sourceLineageTag: MCCGroup
+		summarizeBy: none
+		sourceColumn: MCCGroup
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_mcc = entity
+		mode: directLake
+		source
+			entityName: dim_mcc
+			schemaName: dbo
+			expressionSource: 'DirectLake - Commercial_Spend_Analytics'
+

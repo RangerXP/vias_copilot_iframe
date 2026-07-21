@@ -1,0 +1,48 @@
+table dim_country
+	lineageTag: b8a19623-a62a-4039-ae33-dc0e51129cf0
+	sourceLineageTag: [dbo].[dim_country]
+
+	column CountryKey
+		dataType: int64
+		formatString: 0
+		lineageTag: 5b341abf-9d2a-4e83-8127-8b69e098519d
+		sourceLineageTag: CountryKey
+		summarizeBy: count
+		sourceColumn: CountryKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column CountryName
+		dataType: string
+		lineageTag: ebb6cacc-05fd-450c-bcc3-c9f795b70c8f
+		sourceLineageTag: CountryName
+		summarizeBy: none
+		sourceColumn: CountryName
+
+		annotation SummarizationSetBy = Automatic
+
+	column Region
+		dataType: string
+		lineageTag: ad6b79c6-54db-4fa7-bfe2-455d40c395bf
+		sourceLineageTag: Region
+		summarizeBy: none
+		sourceColumn: Region
+
+		annotation SummarizationSetBy = Automatic
+
+	column CurrencyCode
+		dataType: string
+		lineageTag: 1c4bda56-1792-4958-b0a5-809b1c8aa64d
+		sourceLineageTag: CurrencyCode
+		summarizeBy: none
+		sourceColumn: CurrencyCode
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_country = entity
+		mode: directLake
+		source
+			entityName: dim_country
+			schemaName: dbo
+			expressionSource: 'DirectLake - Commercial_Spend_Analytics'
+

@@ -1,0 +1,202 @@
+table fact_commercialspend
+	lineageTag: 5b4676c7-7401-4ab1-8589-ad00da032e4f
+	sourceLineageTag: [dbo].[fact_commercialspend]
+
+	measure 'Total Spend USD' = SUM(fact_commercialspend[SpendAmountUSD])
+		formatString: $#,0.00
+		displayFolder: Core Spend
+		lineageTag: 87eeff8f-8b04-4163-97cb-27d946b5b56f
+
+	measure 'Transaction Count' = SUM(fact_commercialspend[TransactionCount])
+		formatString: #,0
+		displayFolder: Core Spend
+		lineageTag: 461d46b1-4d60-4a35-a8cd-80dc1f5c344a
+
+	measure 'Average Ticket USD' = DIVIDE([Total Spend USD], [Transaction Count])
+		formatString: $#,0.00
+		displayFolder: Core Spend
+		lineageTag: b185b429-596e-4dde-9ad6-6c9e6b65a4be
+
+	measure 'Interchange Revenue USD' = SUM(fact_commercialspend[InterchangeRevenueUSD])
+		formatString: $#,0.00
+		displayFolder: Core Spend
+		lineageTag: 4056562f-98c8-47e8-820a-fe132a5cfd6e
+
+	measure 'Fraud Exposure Score' = AVERAGE(fact_commercialspend[FraudScore])
+		formatString: 0.0
+		displayFolder: Risk
+		lineageTag: 1f6e2a86-bb04-4227-86d0-8f4011210923
+
+	measure 'High Fraud Transactions' = CALCULATE([Transaction Count], fact_commercialspend[FraudScore] >= 70)
+		formatString: #,0
+		displayFolder: Risk
+		lineageTag: cff331b7-1e4f-45cf-95ef-fe02b6baefb7
+
+	measure 'Approval Rate' =
+			DIVIDE(
+			    CALCULATE([Transaction Count], dim_approvalstatus[ApprovalStatus] = "Approved"),
+			    [Transaction Count]
+			)
+		formatString: 0.0%
+		displayFolder: Approval
+		lineageTag: 467c63ce-c433-4aa4-843f-e724b5f86c2e
+
+	measure 'Decline Rate' =
+			DIVIDE(
+			    CALCULATE([Transaction Count], dim_approvalstatus[ApprovalStatus] = "Declined"),
+			    [Transaction Count]
+			)
+		formatString: 0.0%
+		displayFolder: Approval
+		lineageTag: 1b0003b8-99d6-4d3c-9098-90f73c55ac5b
+
+	measure 'Spend YoY %' =
+			DIVIDE(
+			    [Total Spend USD]
+			        - CALCULATE([Total Spend USD], DATEADD(dim_date[Date], -1, YEAR)),
+			    CALCULATE([Total Spend USD], DATEADD(dim_date[Date], -1, YEAR))
+			)
+		formatString: 0.0%
+		displayFolder: Time Intelligence
+		lineageTag: 4c099ecd-a1bd-4837-bb7f-e7442160ce3d
+
+	column TransactionId
+		dataType: int64
+		formatString: 0
+		lineageTag: ee646082-6177-4f83-827d-9e7cbda7b80e
+		sourceLineageTag: TransactionId
+		summarizeBy: count
+		sourceColumn: TransactionId
+
+		annotation SummarizationSetBy = Automatic
+
+	column TransactionDateKey
+		dataType: int64
+		formatString: 0
+		lineageTag: a3066796-7710-43a2-a945-746a4f5dc5cf
+		sourceLineageTag: TransactionDateKey
+		summarizeBy: count
+		sourceColumn: TransactionDateKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column ClientKey
+		dataType: int64
+		formatString: 0
+		lineageTag: 9da0ad15-cd97-49e2-9cf0-ff2530e63bf7
+		sourceLineageTag: ClientKey
+		summarizeBy: count
+		sourceColumn: ClientKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column CountryKey
+		dataType: int64
+		formatString: 0
+		lineageTag: 0b4f0751-8d38-48e9-90c4-dd96e775f879
+		sourceLineageTag: CountryKey
+		summarizeBy: count
+		sourceColumn: CountryKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column MerchantKey
+		dataType: int64
+		formatString: 0
+		lineageTag: 6d7c0107-5393-4f5e-aef5-44b5e83f084e
+		sourceLineageTag: MerchantKey
+		summarizeBy: count
+		sourceColumn: MerchantKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column MCCKey
+		dataType: int64
+		formatString: 0
+		lineageTag: dff38ff6-fce2-47ac-a256-8318d5434f9b
+		sourceLineageTag: MCCKey
+		summarizeBy: count
+		sourceColumn: MCCKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column ProductKey
+		dataType: int64
+		formatString: 0
+		lineageTag: 3b648bb2-afe8-4991-85a5-8ea68a0a01ff
+		sourceLineageTag: ProductKey
+		summarizeBy: count
+		sourceColumn: ProductKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column SegmentKey
+		dataType: int64
+		formatString: 0
+		lineageTag: 8429134b-065c-4c17-b0e7-f03193fae384
+		sourceLineageTag: SegmentKey
+		summarizeBy: count
+		sourceColumn: SegmentKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column ApprovalStatusKey
+		dataType: int64
+		formatString: 0
+		lineageTag: 56d39a80-4bfb-48aa-a927-9b71f67ece17
+		sourceLineageTag: ApprovalStatusKey
+		summarizeBy: count
+		sourceColumn: ApprovalStatusKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column SpendAmountUSD
+		dataType: double
+		lineageTag: 66f3e279-2bef-4eba-bc51-7cfd2f049cde
+		sourceLineageTag: SpendAmountUSD
+		summarizeBy: sum
+		sourceColumn: SpendAmountUSD
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column TransactionCount
+		dataType: int64
+		formatString: 0
+		lineageTag: b0f2d87d-b049-425e-afa6-25d1c8de6aa1
+		sourceLineageTag: TransactionCount
+		summarizeBy: sum
+		sourceColumn: TransactionCount
+
+		annotation SummarizationSetBy = Automatic
+
+	column InterchangeRevenueUSD
+		dataType: double
+		lineageTag: dc15be2f-0fe6-4a55-acb2-6c5bcee4cf3d
+		sourceLineageTag: InterchangeRevenueUSD
+		summarizeBy: sum
+		sourceColumn: InterchangeRevenueUSD
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	column FraudScore
+		dataType: double
+		lineageTag: 802fe6e9-a228-4380-9886-4820cbcb096e
+		sourceLineageTag: FraudScore
+		summarizeBy: sum
+		sourceColumn: FraudScore
+
+		annotation SummarizationSetBy = Automatic
+
+		annotation PBI_FormatHint = {"isGeneralNumber":true}
+
+	partition fact_commercialspend = entity
+		mode: directLake
+		source
+			entityName: fact_commercialspend
+			schemaName: dbo
+			expressionSource: 'DirectLake - Commercial_Spend_Analytics'
+

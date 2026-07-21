@@ -1,0 +1,39 @@
+table dim_approvalstatus
+	lineageTag: 48252a83-5d3f-415d-8574-f09e8dd57023
+	sourceLineageTag: [dbo].[dim_approvalstatus]
+
+	column ApprovalStatusKey
+		dataType: int64
+		formatString: 0
+		lineageTag: 4407b05e-e4d1-427b-b929-f46615763aaf
+		sourceLineageTag: ApprovalStatusKey
+		summarizeBy: count
+		sourceColumn: ApprovalStatusKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column ApprovalStatus
+		dataType: string
+		lineageTag: f8ee9e30-6538-4666-ada6-b99c67c61f5e
+		sourceLineageTag: ApprovalStatus
+		summarizeBy: none
+		sourceColumn: ApprovalStatus
+
+		annotation SummarizationSetBy = Automatic
+
+	column StatusDescription
+		dataType: string
+		lineageTag: 50c4f19f-eb3a-468e-b7b0-0aaa3aff4c6c
+		sourceLineageTag: StatusDescription
+		summarizeBy: none
+		sourceColumn: StatusDescription
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_approvalstatus = entity
+		mode: directLake
+		source
+			entityName: dim_approvalstatus
+			schemaName: dbo
+			expressionSource: 'DirectLake - Commercial_Spend_Analytics'
+

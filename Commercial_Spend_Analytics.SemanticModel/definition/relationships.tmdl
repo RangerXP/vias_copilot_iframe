@@ -1,0 +1,32 @@
+relationship fact_commercialspend_TransactionDateKey_dim_date_DateKey
+	fromColumn: fact_commercialspend.TransactionDateKey
+	toColumn: dim_date.DateKey
+
+relationship fact_commercialspend_ClientKey_dim_client_ClientKey
+	fromColumn: fact_commercialspend.ClientKey
+	toColumn: dim_client.ClientKey
+
+relationship fact_commercialspend_CountryKey_dim_country_CountryKey
+	fromColumn: fact_commercialspend.CountryKey
+	toColumn: dim_country.CountryKey
+
+relationship fact_commercialspend_MerchantKey_dim_merchant_MerchantKey
+	fromColumn: fact_commercialspend.MerchantKey
+	toColumn: dim_merchant.MerchantKey
+
+relationship fact_commercialspend_MCCKey_dim_mcc_MCCKey
+	fromColumn: fact_commercialspend.MCCKey
+	toColumn: dim_mcc.MCCKey
+
+relationship fact_commercialspend_ProductKey_dim_product_ProductKey
+	fromColumn: fact_commercialspend.ProductKey
+	toColumn: dim_product.ProductKey
+
+relationship fact_commercialspend_SegmentKey_dim_segment_SegmentKey
+	fromColumn: fact_commercialspend.SegmentKey
+	toColumn: dim_segment.SegmentKey
+
+relationship fact_commercialspend_ApprovalStatusKey_dim_approvalstatus_ApprovalStatusKey
+	fromColumn: fact_commercialspend.ApprovalStatusKey
+	toColumn: dim_approvalstatus.ApprovalStatusKey
+
