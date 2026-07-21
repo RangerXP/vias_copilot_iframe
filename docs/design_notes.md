@@ -1,16 +1,33 @@
 # Design Notes — Implementation Requirements
-## MSIE Power BI Embedded Context-Aware AI Assistant (Pattern 1)
+## VISA Commercial Spend Analytics — PBIE + FilterSession Context Injection (Pattern 2)
 
 **Prepared for:** Customer Implementation Team  
-**Pattern:** Context Injection Agent  
+**Pattern:** Host-App Filter Injection + FilterSession Context Grounding  
 **Tenant:** `MngEnvMCAP660444.onmicrosoft.com`  
-**Last updated:** 2026-07-21
+**Last updated:** 2026-07-21  
+**Redesign note:** Project scope updated 2026-07-21 from Pattern 1 (slicer-read context injection) to Pattern 2 (host-app filter injection via `setFilters()` + `Fact_FilterSession` grounding). See Section 4 for the updated context flow and Section 11 for the new data model.
 
 ---
 
 ## Purpose
 
-This document captures the implementation requirements, constraints, and decisions that the development team needs to know before building the Pattern 1 solution. It is intended as a handoff document covering identity, token management, embedding, security, and hosting prerequisites.
+This document captures the implementation requirements, constraints, and decisions that the development team needs to know before building the Pattern 2 solution. It covers identity, token management, embedding, filter-state ownership, session persistence, and agent grounding.
+
+### Pattern 2 — Host-App Filter Injection (current design)
+
+The host application (VISA Partner Portal) **owns the filter/prompt experience**. The report never uses native Power BI slicers for context-driven filtering. Instead:
+
+```
+VISA Partner Portal
+  → custom prompt / filter UI
+  → accumulated filter state
+  → PBIE setFilters()            ← applies state to embedded report
+  → Direct Lake semantic model
+  → persisted Fact_FilterSession ← same state written to Fabric Lakehouse
+  → Foundry / Fabric Data Agent  ← agent receives filter state as grounding context
+```
+
+This approach avoids Power BI native slicer interaction issues in embedded scenarios, gives the host app full control over filter state, and allows the agent to query `Fact_FilterSession` directly against the governed semantic model rather than relying on screenshot/DOM capture.
 
 ---
 
@@ -200,34 +217,96 @@ Embed tokens can be generated without a per-user Power BI Pro or Premium Per Use
 
 ---
 
-## 4. Context Capture — PBIE JavaScript SDK
+## 4. Context Flow — Host-App Filter Injection (Pattern 2)
 
-The host application captures report state using the `powerbi-client` JavaScript SDK. This runs entirely in the browser against the iframe.
+In Pattern 2, the host application owns the filter state. The `powerbi-client` SDK is used to **apply** filters to the report, not to read them back.
 
-### SDK version
+### 4a. Applying Filters to the Embedded Report
+
+The host app builds a filter object from the custom UI and pushes it into the report:
+
+```javascript
+import * as pbi from 'powerbi-client';
+
+// Build a basic filter — IBasicFilter from powerbi-models
+const filter = {
+  $schema: 'http://powerbi.com/product/schema#basic',
+  target: { table: 'Dim_Client', column: 'ClientName' },
+  operator: 'In',
+  values: ['ACME Corp', 'Global Bank']
+};
+
+// Apply to report (replaces all report-level filters)
+await report.setFilters([filter]);
+
+// Or apply to a specific page
+const pages = await report.getPages();
+const activePage = pages.find(p => p.isActive);
+await activePage.setFilters([filter]);
+```
+
+> **Why `setFilters()` instead of slicers?** Native Power BI slicers in embedded scenarios have cross-visual sync issues and are difficult to drive programmatically from the host app. `setFilters()` applies directly to the report's filter context, is reliable in embedded mode, and keeps filter state management in the host app where it belongs.
+
+### 4b. Accumulating Filter State in the Host App
+
+The host app maintains a `filterState` object in memory (or in React/component state). Each user interaction updates this object:
+
+```javascript
+// filterState shape — matches embedded_filter_context_schema.json
+const filterState = {
+  sessionId: crypto.randomUUID(),
+  timestamp: new Date().toISOString(),
+  userId: window.PBIE_USER_UPN,
+  reportId: '<reportId>',
+  page: { name: 'Demo PBIP', displayName: 'Demo PBIP' },
+  filters: [
+    { table: 'Dim_Client', column: 'ClientName', values: ['ACME Corp'] },
+    { table: 'Dim_Date', column: 'CalendarYear', values: [2024, 2025] }
+  ],
+  segments: [],
+  mccs: []
+};
+```
+
+### 4c. Persisting Filter State to Fact_FilterSession
+
+On each filter change (or on session end), the host app writes the filter state to `Fact_FilterSession` in the Fabric Lakehouse. This table is part of the Direct Lake semantic model and queryable by the Fabric Data Agent:
+
+```javascript
+// POST to backend — backend writes to Lakehouse via Fabric REST API
+await fetch('/api/session', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify(filterState)
+});
+```
+
+### 4d. Passing Filter State to the Agent
+
+When the user sends a chat message, the current `filterState` is serialized and injected as context in the Foundry Agent user turn:
+
+```
+[Report Context]
+Page: Demo PBIP
+Filters active:
+  - Client: ACME Corp
+  - Year: 2024, 2025
+
+[User Question]
+What is the approval rate trend for this client over the selected period?
+```
+
+The agent also has access to `Fact_FilterSession` via the semantic model, enabling it to look up historical filter sessions for the same user.
+
+### 4e. SDK version
 
 ```json
 "powerbi-client": "^2.23.1"
 ```
 
-### Context capture API calls
+### Previously implemented (Pattern 1 — superseded)
 
-These are the SDK methods used in `captureContext.js`:
-
-| Method | Returns | Notes |
-|--------|---------|-------|
-| `report.getPages()` | Array of page objects | `.isActive` identifies current page |
-| `report.getFilters()` | Array of filter objects | Report-level filters |
-| `activePage.getFilters()` | Array of filter objects | Page-level filters |
-| `activePage.getVisuals()` | Array of visual objects | Used to identify slicer visuals |
-| `visual.getSlicerState()` | Slicer state object | Per-slicer selected values |
-
-### Known limitations
-
-- `getSlicerState()` requires the visual to be of type `slicer` — non-slicer visuals cannot be queried for selection state via this API
-- Report-level filters and page-level filters are separate collections and must both be retrieved
-- Visual cross-filter selections (cross-highlighting) are **not** captured in the initial implementation (Sprint 5 scope)
-- `getSlicerState()` may throw on visuals where no selection has been made — implement try/catch per visual
+The prior implementation in `frontend/context-capture/captureContext.js` reads slicer state via `getSlicerState()`. This file is retained in the codebase but is superseded by the Pattern 2 approach. It can be repurposed as a fallback or removed in Sprint 3.
 
 ---
 
@@ -239,16 +318,34 @@ The Fabric Data Agent is an AI-powered query interface provisioned inside a Fabr
 
 ### Status
 
-> **Not yet provisioned** for the `Visa Slicer Demo v2` semantic model. Must be created before Sprint 3.
+> **Not yet provisioned.** Target model is the **VISA Commercial Spend Analytics** Direct Lake semantic model (see Section 11). Must be created after the Lakehouse + semantic model are deployed.
+
+### Target semantic model for the Data Agent
+
+The Data Agent should be provisioned against the **VISA Commercial Spend Analytics** model (not `Visa Slicer Demo v2`). Key tables the agent should be able to query:
+
+| Table | Purpose |
+|-------|---------|
+| `Fact_CommercialSpend` | 250k synthetic transaction rows — primary fact table |
+| `Fact_FilterSession` | Persisted host-app filter sessions — agent uses this for user context |
+| `Dim_Client` | Client/cardholder dimension |
+| `Dim_Merchant` | Merchant dimension |
+| `Dim_MCC` | Merchant Category Code dimension |
+| `Dim_Country` | Country/region dimension |
+| `Dim_Product` | Card product dimension |
+| `Dim_Segment` | Business segment dimension |
+| `Dim_Date` | Date dimension |
+| `Dim_ApprovalStatus` | Transaction approval status dimension |
 
 ### Provisioning steps
 
-1. Open the **VISA** workspace in Fabric portal (`app.fabric.microsoft.com`)
-2. Click **New item → Data agent** (or "AI skill" depending on tenant feature flag)
-3. Select data source type: **Semantic model (Power BI)**
-4. Select **Visa Slicer Demo v2**
-5. Add table/measure descriptions to improve query accuracy
-6. Publish the agent and record the **agent ID** and **endpoint URL**
+1. Complete Section 11 (Fabric Lakehouse deployment) first
+2. Open the **VISA PBIE Context Injection** workspace in Fabric portal
+3. Click **New item → Data agent** (or "AI skill" depending on tenant feature flag)
+4. Select data source type: **Semantic model (Power BI)**
+5. Select **VISA Commercial Spend Analytics**
+6. Add table/measure descriptions using the descriptions in `model_spec.json` (from starter package)
+7. Publish the agent and record the **agent ID** and **endpoint URL**
 
 ### Auth for backend calls to Fabric Data Agent
 
@@ -380,6 +477,106 @@ REPORT_PAGE   = Demo PBIP  (internal: 837f1f392a2c651b68e5)
 EMBED_URL     = https://app.powerbi.com/reportEmbed?reportId=daed8d4d-2dc3-4708-ad82-5611c667498c&groupId=8dd24078-9814-4e5d-a26c-3713092564bd&w=2&config=eyJjbHVzdGVyVXJsIjoiaHR0cHM6Ly9XQUJJLVdFU1QtVVMzLUEtUFJJTUFSWS1yZWRpcmVjdC5hbmFseXNpcy53aW5kb3dzLm5ldCIsImVtYmVkRmVhdHVyZXMiOnsidXNhZ2VNZXRyaWNzVk5leHQiOnRydWV9fQ%3d%3d
 XMLA_ENDPOINT = powerbi://api.powerbi.com/v1.0/myorg/VISA
 ```
+
+---
+
+## 11. Data Model — VISA Commercial Spend Analytics
+
+The project uses a purpose-built synthetic dataset. It does **not** contain real VISA, PAN, PII, cardholder, merchant, or production transaction data.
+
+### Dataset summary
+
+| Item | Detail |
+|------|--------|
+| Transaction rows | 250,000 synthetic commercial spend records |
+| Filter session rows | 5,000 synthetic host-app filter sessions |
+| Dimension tables | 8 |
+| Fact tables | 2 |
+| Storage mode | Direct Lake (Fabric Lakehouse → Delta tables) |
+| Starter package | `VISA commercial spend starter package.zip` (contains CSVs, DAX measures, model spec, filter contract, notebook) |
+
+### Tables
+
+| File | Type | Description |
+|------|------|-------------|
+| `Dim_Date.csv` | Dimension | Calendar date table |
+| `Dim_Client.csv` | Dimension | Client / cardholder accounts |
+| `Dim_Country.csv` | Dimension | Country / region |
+| `Dim_Product.csv` | Dimension | Card product type |
+| `Dim_Segment.csv` | Dimension | Business segment |
+| `Dim_Merchant.csv` | Dimension | Merchant records |
+| `Dim_MCC.csv` | Dimension | Merchant Category Codes |
+| `Dim_ApprovalStatus.csv` | Dimension | Transaction approval status codes |
+| `Fact_CommercialSpend.csv` | Fact | Commercial spend transactions |
+| `Fact_FilterSession.csv` | Fact | Host-app filter/prompt sessions |
+
+### Fabric deployment path
+
+1. Upload all CSV files to the **Files** area of a Fabric Lakehouse in the `VISA PBIE Context Injection` workspace
+2. Load each CSV to a Delta table with the same table name (use the included Fabric notebook or Dataflow Gen2)
+3. Create a **Direct Lake** semantic model over the Delta tables
+4. Apply relationships from `model_spec.json` (included in starter package)
+5. Add DAX measures from `semantic_model_measures.dax` (included in starter package)
+6. Provision the Fabric Data Agent against this model (see Section 5)
+
+> Microsoft Learn reference: [Load data into a Fabric Lakehouse](https://learn.microsoft.com/en-us/fabric/data-engineering/load-data-lakehouse) · [CSV-to-Delta quickstart](https://learn.microsoft.com/en-us/fabric/data-engineering/get-started-csv-upload)
+
+### Updating semantic/model_metadata.md
+
+Once the model is deployed, update `semantic/model_metadata.md` and `semantic/metadata/field_map.json` with the confirmed table names and column names from this model (replacing the `Visa Slicer Demo v2` placeholders).
+
+---
+
+## 12. Filter Context Contract
+
+The file `embedded_filter_context_schema.json` (included in the starter package) defines the JSON contract that flows between:
+
+- Host application prompt/filter UI state
+- `report.setFilters()` call to PBIE
+- `Fact_FilterSession` write to Fabric Lakehouse
+- Agent prompt builder (grounding context block)
+
+### Schema shape
+
+```json
+{
+  "sessionId": "<uuid>",
+  "timestamp": "2026-07-21T18:00:00Z",
+  "userId": "user@domain.com",
+  "reportId": "<pbi-report-id>",
+  "page": {
+    "name": "Demo PBIP",
+    "displayName": "Demo PBIP"
+  },
+  "filters": [
+    {
+      "table": "Dim_Client",
+      "column": "ClientName",
+      "operator": "In",
+      "values": ["ACME Corp"]
+    },
+    {
+      "table": "Dim_Date",
+      "column": "CalendarYear",
+      "operator": "In",
+      "values": [2024, 2025]
+    }
+  ],
+  "segments": [],
+  "mccs": [],
+  "question": "What is the approval rate for this client YTD?"
+}
+```
+
+### Contract usage by component
+
+| Component | Usage |
+|-----------|-------|
+| Frontend filter UI | Writes to `filterState` object in memory |
+| `embed.js` | Calls `report.setFilters()` using `filters[]` array converted to `IBasicFilter` objects |
+| `server/routes/session.js` (Sprint 3) | Receives full contract, writes to `Fact_FilterSession` via Fabric Lakehouse API |
+| `server/routes/chat.js` | Receives `filterState` as `rawContext`, builds context block for agent turn |
+| Fabric Data Agent | Queries `Fact_FilterSession` directly by `sessionId` or `userId` for historical context |
 
 ---
 

@@ -1,0 +1,58 @@
+// =============================================================================
+// VISA Commercial Spend Analytics — DAX Starter Measures
+// =============================================================================
+// Table: Fact_CommercialSpend
+// Storage mode: Direct Lake
+// Last updated: 2026-07-21
+//
+// Usage: Import into the VISA Commercial Spend Analytics semantic model
+//        via Tabular Editor, XMLA endpoint, or Power BI Desktop.
+// =============================================================================
+
+// -- Core spend metrics -------------------------------------------------------
+
+Total Spend USD =
+    SUM(Fact_CommercialSpend[SpendAmountUSD])
+
+Transaction Count =
+    SUM(Fact_CommercialSpend[TransactionCount])
+
+Average Ticket USD =
+    DIVIDE([Total Spend USD], [Transaction Count])
+
+Interchange Revenue USD =
+    SUM(Fact_CommercialSpend[InterchangeRevenueUSD])
+
+// -- Risk / fraud metrics -----------------------------------------------------
+
+Fraud Exposure Score =
+    AVERAGE(Fact_CommercialSpend[FraudScore])
+
+High Fraud Transactions =
+    CALCULATE(
+        [Transaction Count],
+        Fact_CommercialSpend[FraudScore] >= 70
+    )
+
+// -- Approval metrics ---------------------------------------------------------
+
+Approval Rate =
+    DIVIDE(
+        CALCULATE([Transaction Count], Dim_ApprovalStatus[ApprovalStatus] = "Approved"),
+        [Transaction Count]
+    )
+
+Decline Rate =
+    DIVIDE(
+        CALCULATE([Transaction Count], Dim_ApprovalStatus[ApprovalStatus] = "Declined"),
+        [Transaction Count]
+    )
+
+// -- Time intelligence --------------------------------------------------------
+
+Spend YoY % =
+    DIVIDE(
+        [Total Spend USD]
+            - CALCULATE([Total Spend USD], DATEADD(Dim_Date[Date], -1, YEAR)),
+        CALCULATE([Total Spend USD], DATEADD(Dim_Date[Date], -1, YEAR))
+    )

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "Notebook",
+    "displayName": "Load_Delta_Tables",
+    "description": "Loads CSV files from Files/ into dbo.* Delta tables in the Commercial_Spend_Analytics Lakehouse"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "d4e5f6a7-b8c9-4d0e-1f2a-3b4c5d6e7f8a"
+  }
+}
