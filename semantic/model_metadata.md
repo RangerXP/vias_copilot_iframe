@@ -1,6 +1,6 @@
 # Semantic Model Metadata
 
-## Status: Delta tables created — create Direct Lake semantic model
+## Status: Semantic model complete — 8 relationships + 9 measures live
 
 ---
 
@@ -26,6 +26,7 @@
 |------|------|----|
 | `Commercial_Spend_Analytics` | Lakehouse | `1aa73044-f85f-4843-b3e5-588cab4c0499` |
 | `Commercial_Spend_Analytics` | SQLEndpoint | `eced6bb3-c201-4f20-beb1-e97dd806e0c2` |
+| `Commercial_Spend_Analytics` | SemanticModel | `b7bc94fc-a087-4e71-9476-f128ba57cf3a` |
 
 ### Lakehouse file inventory (Files/ root)
 
@@ -63,9 +64,46 @@ All 10 tables created via `Load_Delta_Tables` notebook (20/20 Spark jobs succeed
 | `dbo.Fact_CommercialSpend` | 250,000 |
 | `dbo.Fact_FilterSession` | 5,000 |
 
-### Semantic model
+### Semantic model — confirmed 2026-07-21
 
-> ⏳ **Not yet created.** Next step — create Direct Lake semantic model over `dbo.*` tables (instructions below).
+| Field | Value |
+|-------|-------|
+| Name | `Commercial_Spend_Analytics` |
+| ID | `b7bc94fc-a087-4e71-9476-f128ba57cf3a` |
+| Storage mode | Direct Lake |
+| Source lakehouse | `Commercial_Spend_Analytics` (`1aa73044-f85f-4843-b3e5-588cab4c0499`) |
+| Relationships | 8 (all active, one-direction) |
+| Measures | 9 (in `fact_commercialspend`) |
+| Validated total spend | $74,812,278 across 250,000 transactions |
+
+#### Relationships
+
+| From (Many) | To (One) |
+|-------------|----------|
+| `fact_commercialspend[TransactionDateKey]` | `dim_date[DateKey]` |
+| `fact_commercialspend[ClientKey]` | `dim_client[ClientKey]` |
+| `fact_commercialspend[CountryKey]` | `dim_country[CountryKey]` |
+| `fact_commercialspend[MerchantKey]` | `dim_merchant[MerchantKey]` |
+| `fact_commercialspend[MCCKey]` | `dim_mcc[MCCKey]` |
+| `fact_commercialspend[ProductKey]` | `dim_product[ProductKey]` |
+| `fact_commercialspend[SegmentKey]` | `dim_segment[SegmentKey]` |
+| `fact_commercialspend[ApprovalStatusKey]` | `dim_approvalstatus[ApprovalStatusKey]` |
+
+#### Measures (table: `fact_commercialspend`)
+
+| Measure | Folder | Format |
+|---------|--------|--------|
+| Total Spend USD | Core Spend | `$#,0.00` |
+| Transaction Count | Core Spend | `#,0` |
+| Average Ticket USD | Core Spend | `$#,0.00` |
+| Interchange Revenue USD | Core Spend | `$#,0.00` |
+| Fraud Exposure Score | Risk | `0.0` |
+| High Fraud Transactions | Risk | `#,0` |
+| Approval Rate | Approval | `0.0%` |
+| Decline Rate | Approval | `0.0%` |
+| Spend YoY % | Time Intelligence | `0.0%` |
+
+> ⏳ **Report not yet created.** Next: create report from this model → record Report ID.
 
 ---
 
