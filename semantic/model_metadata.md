@@ -1,8 +1,6 @@
 # Semantic Model Metadata
 
-## Status: Pending Discovery
-
-> Complete [fabric_model_discovery.md](../docs/fabric_model_discovery.md) Steps 2–4 to populate this file.
+## Status: Lakehouse ready — run notebook to create Delta tables
 
 ---
 
@@ -15,19 +13,50 @@
 | Subscription | `ME-MngEnvMCAP660444-seankelley-2` (`c4a3460a-3527-460c-ab59-4a4c7a15646b`) |
 | Fabric Capacity ID | `cb113ec9-926c-4af4-99fe-0b5b55fb69b6` |
 
-## Target Workspace
+## Workspaces
 
-| Field | Value |
-|-------|-------|
-| Workspace Name | `VISA` |
-| Workspace ID | `8dd24078-9814-4e5d-a26c-3713092564bd` |
-| On Dedicated Capacity | Yes |
+| Workspace Name | Workspace ID | Purpose |
+|---------------|-------------|----------|
+| VISA | `8dd24078-9814-4e5d-a26c-3713092564bd` | Original Visa Slicer Demo reports |
+| **VISA PBIE Context Injection** | **`349db6f1-5df6-4992-ba67-ebc4449fead5`** | **Active dev workspace** |
 
-## Semantic Models
+## VISA PBIE Context Injection Workspace — Items (confirmed 2026-07-21)
 
-| Name | ID | Use |
-|------|----|-----|
-| Visa Slicer Demo | `bcfdc1db-8c47-4033-9c5a-2c637c447891` | v1 (baseline) |
+| Item | Type | ID |
+|------|------|----|
+| `Commercial_Spend_Analytics` | Lakehouse | `1aa73044-f85f-4843-b3e5-588cab4c0499` |
+| `Commercial_Spend_Analytics` | SQLEndpoint | `eced6bb3-c201-4f20-beb1-e97dd806e0c2` |
+
+### Lakehouse file inventory (Files/ root)
+
+| File | Size | Type |
+|------|------|------|
+| `Dim_Date.csv` | 49 KB | Dimension CSV |
+| `Dim_Client.csv` | 31 KB | Dimension CSV |
+| `Dim_Country.csv` | 0.7 KB | Dimension CSV |
+| `Dim_Product.csv` | 0.3 KB | Dimension CSV |
+| `Dim_Segment.csv` | 0.2 KB | Dimension CSV |
+| `Dim_Merchant.csv` | 44 KB | Dimension CSV |
+| `Dim_MCC.csv` | 0.5 KB | Dimension CSV |
+| `Dim_ApprovalStatus.csv` | 0.2 KB | Dimension CSV |
+| `Fact_CommercialSpend.csv` | 14.2 MB | Fact CSV |
+| `Fact_FilterSession.csv` | 1.1 MB | Fact CSV |
+| `embedded_filter_context_schema.json` | 0.7 KB | Schema contract |
+| `fabric_generate_delta_tables.py` | 0.9 KB | Original load script |
+| `model_spec.json` | 1.2 KB | Model spec |
+| `semantic_model_measures.dax` | 0.9 KB | DAX measures |
+
+### Delta tables (dbo schema)
+
+> ⏳ **Not yet created.** Run `src/fabric/notebooks/load_delta_tables.py` to create `dbo.Dim_*` and `dbo.Fact_*` tables.
+
+### Semantic model
+
+> ⏳ **Not yet created.** Create after tables are loaded.
+
+---
+
+## VISA Workspace — Legacy items (reference only)
 | **Visa Slicer Demo v2** | `5686371f-58c7-453f-89c8-26b0e2fb7f9d` | **Primary target** |
 
 ## Reports

@@ -1,23 +1,24 @@
 # =============================================================================
 # VISA Commercial Spend Analytics — Fabric Lakehouse Delta Table Loader
 # =============================================================================
-# Attach this notebook to the VISA PBIE Context Injection Fabric Lakehouse
-# before running. Upload CSV files to:
-#   Files/visa_commercial_spend_context_injection/
+# Lakehouse: Commercial_Spend_Analytics (schema-enabled)
+# Workspace: VISA PBIE Context Injection (349db6f1-5df6-4992-ba67-ebc4449fead5)
+# Lakehouse ID: 1aa73044-f85f-4843-b3e5-588cab4c0499
 #
-# Prerequisites:
-#   - Fabric Lakehouse created in the VISA PBIE Context Injection workspace
-#   - All 10 CSV files uploaded under Files/visa_commercial_spend_context_injection/
-#   - Notebook attached to the Lakehouse (set as default Lakehouse in notebook settings)
+# CSV files are in the root of Files/ (no subfolder):
+#   Files/Dim_Date.csv, Files/Fact_CommercialSpend.csv, etc.
 #
-# Tables created (in load order — dimensions first):
-#   Dim_Date, Dim_Country, Dim_Segment, Dim_Product, Dim_ApprovalStatus,
-#   Dim_MCC, Dim_Client, Dim_Merchant, Fact_CommercialSpend, Fact_FilterSession
+# This is a schema-enabled Lakehouse. Tables are created in the dbo schema.
+# Attach this notebook to the Commercial_Spend_Analytics Lakehouse before running.
 # =============================================================================
 
 from pyspark.sql.utils import AnalysisException
 
-SOURCE_FOLDER = "Files/visa_commercial_spend_context_injection"
+# Files are in the root of the Files/ area (no subfolder)
+SOURCE_FOLDER = "Files"
+
+# Schema prefix for schema-enabled Lakehouse
+SCHEMA = "dbo"
 
 # Dimensions loaded before facts so foreign key relationships are valid
 TABLES = [
@@ -34,11 +35,12 @@ TABLES = [
 ]
 
 # ---------------------------------------------------------------------------
-# Load each CSV into a managed Delta table in the attached Lakehouse
+# Load each CSV into a managed Delta table in the dbo schema
 # ---------------------------------------------------------------------------
 for table in TABLES:
     path = f"{SOURCE_FOLDER}/{table}.csv"
-    print(f"Loading {table} from {path}...")
+    qualified = f"{SCHEMA}.{table}"
+    print(f"Loading {qualified} from {path}...")
     try:
         df = (
             spark.read
@@ -49,30 +51,31 @@ for table in TABLES:
             .csv(path)
         )
         row_count = df.count()
-        df.write.format("delta").mode("overwrite").saveAsTable(table)
-        print(f"  OK  {table}: {row_count:,} rows written")
+        df.write.format("delta").mode("overwrite").saveAsTable(qualified)
+        print(f"  OK  {qualified}: {row_count:,} rows written")
     except AnalysisException as e:
-        print(f"  ERR {table}: FAILED — {e}")
+        print(f"  ERR {qualified}: FAILED — {e}")
 
 # ---------------------------------------------------------------------------
 # Optimize fact tables for Direct Lake query performance
 # ---------------------------------------------------------------------------
 print("\nRunning OPTIMIZE on fact tables...")
-spark.sql("OPTIMIZE Fact_CommercialSpend")
-print("  OK  Fact_CommercialSpend optimized")
+spark.sql(f"OPTIMIZE {SCHEMA}.Fact_CommercialSpend")
+print(f"  OK  {SCHEMA}.Fact_CommercialSpend optimized")
 
-spark.sql("OPTIMIZE Fact_FilterSession")
-print("  OK  Fact_FilterSession optimized")
+spark.sql(f"OPTIMIZE {SCHEMA}.Fact_FilterSession")
+print(f"  OK  {SCHEMA}.Fact_FilterSession optimized")
 
 # ---------------------------------------------------------------------------
 # Verify: print row counts for all tables
 # ---------------------------------------------------------------------------
 print("\n--- Table summary ---")
 for table in TABLES:
+    qualified = f"{SCHEMA}.{table}"
     try:
-        count = spark.sql(f"SELECT COUNT(*) AS cnt FROM {table}").collect()[0]["cnt"]
-        print(f"  {table}: {count:,} rows")
+        count = spark.sql(f"SELECT COUNT(*) AS cnt FROM {qualified}").collect()[0]["cnt"]
+        print(f"  {qualified}: {count:,} rows")
     except Exception as e:
-        print(f"  {table}: ERROR — {e}")
+        print(f"  {qualified}: ERROR — {e}")
 
 print("\nDelta table load complete. Next: create Direct Lake semantic model over these tables.")

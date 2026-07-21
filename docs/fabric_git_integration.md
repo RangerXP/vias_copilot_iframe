@@ -20,51 +20,54 @@ Fabric Git Integration syncs Fabric items (notebooks, semantic models, reports i
 |-------------|--------|
 | GitHub repo connected to VISA PBIE Context Injection workspace | ✅ Connected (2026-07-21) |
 | Fabric capacity assigned to workspace (`fabcmksettlement`) | ✅ Confirmed |
+| `Commercial_Spend_Analytics` Lakehouse created | ✅ Created (`1aa73044-f85f-4843-b3e5-588cab4c0499`) |
+| All 10 CSV files uploaded to Lakehouse Files/ root | ✅ Confirmed (2026-07-21) |
+| Delta tables loaded (notebook run) | ⏳ Next step |
+| Direct Lake semantic model created | ⏳ Pending |
 | Service principal registered in `MngEnvMCAP660444` | Pending — see `docs/design_notes.md` Section 1 |
-| CSV files from starter package available locally | Required for Step 2 |
 
 ---
 
-## Step 1 — Upload CSV Files to Fabric Lakehouse
+## Step 1 — CSV Files Already Uploaded ✅
 
-1. Open the **VISA PBIE Context Injection** workspace in [Fabric portal](https://app.fabric.microsoft.com)
-2. Create a new **Lakehouse** named `visa_commercial_spend`
-3. In the Lakehouse explorer, navigate to **Files** → click **Upload** → **Upload folder**
-4. Create a folder named `visa_commercial_spend_context_injection`
-5. Upload all 10 CSV files into that folder:
+All 10 CSV files are confirmed uploaded to the root of **Files/** in the `Commercial_Spend_Analytics` Lakehouse (verified 2026-07-21):
 
-   ```
-   Dim_Date.csv
-   Dim_Client.csv
-   Dim_Country.csv
-   Dim_Product.csv
-   Dim_Segment.csv
-   Dim_Merchant.csv
-   Dim_MCC.csv
-   Dim_ApprovalStatus.csv
-   Fact_CommercialSpend.csv
-   Fact_FilterSession.csv
-   ```
+| File | Size |
+|------|------|
+| `Dim_Date.csv` | 49 KB |
+| `Dim_Client.csv` | 31 KB |
+| `Dim_Country.csv` | 0.7 KB |
+| `Dim_Product.csv` | 0.3 KB |
+| `Dim_Segment.csv` | 0.2 KB |
+| `Dim_Merchant.csv` | 44 KB |
+| `Dim_MCC.csv` | 0.5 KB |
+| `Dim_ApprovalStatus.csv` | 0.2 KB |
+| `Fact_CommercialSpend.csv` | 14.2 MB |
+| `Fact_FilterSession.csv` | 1.1 MB |
+
+> Files are in `Files/` root — **no subfolder**. The notebook reads from `Files/<TableName>.csv` directly.
 
 ---
 
 ## Step 2 — Run the Delta Table Loader Notebook
 
-1. In the workspace, click **New item → Notebook**
-2. Attach the notebook to the `visa_commercial_spend` Lakehouse
+1. In the **VISA PBIE Context Injection** workspace, click **New item → Notebook**
+2. Attach the notebook to the **`Commercial_Spend_Analytics`** Lakehouse
 3. Paste the contents of `src/fabric/notebooks/load_delta_tables.py` into the first cell
 4. Click **Run all**
-5. Verify the output shows all 10 tables with row counts:
-   - `Fact_CommercialSpend`: ~250,000 rows
-   - `Fact_FilterSession`: ~5,000 rows
+5. Verify the output shows all 10 tables with row counts in the `dbo` schema:
+   - `dbo.Fact_CommercialSpend`: ~250,000 rows
+   - `dbo.Fact_FilterSession`: ~5,000 rows
+
+> **Schema note:** This is a schema-enabled Lakehouse. Tables are created under the `dbo` schema (`dbo.Dim_Date`, `dbo.Fact_CommercialSpend`, etc.).
 
 ---
 
 ## Step 3 — Create the Direct Lake Semantic Model
 
-1. In the Lakehouse, click **New semantic model** (top toolbar)
+1. In the `Commercial_Spend_Analytics` Lakehouse, click **New semantic model** (top toolbar)
 2. Name it: `VISA Commercial Spend Analytics + FilterSession Context Injection`
-3. Select all 10 tables
+3. Select schema **dbo** and all 10 tables
 4. Click **Confirm**
 
 ### Add relationships
