@@ -1,6 +1,6 @@
 # Semantic Model Metadata
 
-## Status: Lakehouse ready — run notebook to create Delta tables
+## Status: Delta tables created — create Direct Lake semantic model
 
 ---
 
@@ -46,13 +46,26 @@
 | `model_spec.json` | 1.2 KB | Model spec |
 | `semantic_model_measures.dax` | 0.9 KB | DAX measures |
 
-### Delta tables (dbo schema)
+### Delta tables (dbo schema) — confirmed 2026-07-21
 
-> ⏳ **Not yet created.** Run `src/fabric/notebooks/load_delta_tables.py` to create `dbo.Dim_*` and `dbo.Fact_*` tables.
+All 10 tables created via `Load_Delta_Tables` notebook (20/20 Spark jobs succeeded).
+
+| Table | Rows |
+|-------|------|
+| `dbo.Dim_Date` | 1,096 |
+| `dbo.Dim_Country` | 30 |
+| `dbo.Dim_Segment` | 10 |
+| `dbo.Dim_Product` | 8 |
+| `dbo.Dim_ApprovalStatus` | 4 |
+| `dbo.Dim_MCC` | 15 |
+| `dbo.Dim_Client` | 500 |
+| `dbo.Dim_Merchant` | 1,000 |
+| `dbo.Fact_CommercialSpend` | 250,000 |
+| `dbo.Fact_FilterSession` | 5,000 |
 
 ### Semantic model
 
-> ⏳ **Not yet created.** Create after tables are loaded.
+> ⏳ **Not yet created.** Next step — create Direct Lake semantic model over `dbo.*` tables (instructions below).
 
 ---
 
