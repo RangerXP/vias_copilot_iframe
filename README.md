@@ -79,8 +79,8 @@ VISA Partner Portal (host app)
 
 ```bash
 # 1. Clone and install
-git clone https://github.com/RangerXP/vias_copilot_iframe.git
-cd vias_copilot_iframe
+git clone https://github.com/RangerXP/visa_copilot_iframe.git
+cd visa_copilot_iframe
 npm install
 
 # 2. Configure environment
