@@ -1,0 +1,39 @@
+{
+  "model_name": "VISA Commercial Spend Analytics + FilterSession Context Injection",
+  "grain": "One row per synthetic commercial-card transaction in Fact_CommercialSpend; one row per host-app filter state transition in Fact_FilterSession.",
+  "storage_mode": "Direct Lake",
+  "workspace": "VISA PBIE Context Injection",
+  "relationships": [
+    "Dim_Date[DateKey]           1:*  Fact_CommercialSpend[TransactionDateKey]",
+    "Dim_Client[ClientKey]       1:*  Fact_CommercialSpend[ClientKey]",
+    "Dim_Country[CountryKey]     1:*  Fact_CommercialSpend[CountryKey]",
+    "Dim_Merchant[MerchantKey]   1:*  Fact_CommercialSpend[MerchantKey]",
+    "Dim_MCC[MCCKey]             1:*  Fact_CommercialSpend[MCCKey]",
+    "Dim_Product[ProductKey]     1:*  Fact_CommercialSpend[ProductKey]",
+    "Dim_Segment[SegmentKey]     1:*  Fact_CommercialSpend[SegmentKey]",
+    "Dim_ApprovalStatus[ApprovalStatusKey] 1:* Fact_CommercialSpend[ApprovalStatusKey]"
+  ],
+  "host_app_filter_fields": [
+    "Year",
+    "Quarter",
+    "CountryName",
+    "ClientName",
+    "SegmentName",
+    "ProductName",
+    "MCCDescription",
+    "MerchantName",
+    "ApprovalStatus"
+  ],
+  "context_injection_pattern": "Host application accumulates prompt selections, applies them to PBIE through report.setFilters(), persists selected state as Fact_FilterSession rows, and provides the same state to the conversational agent as grounding context.",
+  "measures": [
+    "Total Spend USD",
+    "Transaction Count",
+    "Average Ticket USD",
+    "Interchange Revenue USD",
+    "Fraud Exposure Score",
+    "Approval Rate",
+    "Decline Rate",
+    "High Fraud Transactions",
+    "Spend YoY %"
+  ]
+}

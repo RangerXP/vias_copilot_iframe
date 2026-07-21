@@ -1,0 +1,15 @@
+{
+  "sessionId": "SSN-0000123",
+  "userId": "partner_user_0001@visa-demo.example",
+  "reportPage": "CommercialSpendOverview",
+  "filters": {
+    "Year": [2026],
+    "Quarter": ["Q2"],
+    "CountryName": ["United States", "Canada"],
+    "SegmentName": ["Enterprise"],
+    "ProductName": ["Visa Corporate"],
+    "MCCDescription": ["Software", "Office Supplies"],
+    "ApprovalStatus": ["Approved"]
+  },
+  "contextPrompt": "Use this filter context as authoritative report state. Answer only for selected years, countries, segments, products, MCCs, and approval status unless the user explicitly asks to compare outside the current context."
+}

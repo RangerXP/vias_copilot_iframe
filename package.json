@@ -1,12 +1,14 @@
 {
   "name": "pbie-context-agent",
   "version": "1.0.0",
-  "description": "Pattern 1 — PBIE Context Injection Agent (local dev server)",
+  "description": "VISA Commercial Spend Analytics — PBIE + FilterSession Context Injection (Pattern 2)",
   "type": "module",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "dev": "node --watch server/index.js"
+    "dev": "node --watch server/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@azure/ai-projects": "^1.0.0",
@@ -18,5 +20,8 @@
   },
   "engines": {
     "node": ">=20.0.0"
+  },
+  "devDependencies": {
+    "vitest": "^4.1.10"
   }
 }

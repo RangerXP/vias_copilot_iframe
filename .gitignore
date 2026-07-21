@@ -13,3 +13,7 @@ Thumbs.db
 
 # VS Code local settings
 .vscode/settings.json
+
+# Synthetic / real data — never commit CSV files
+data/*.csv
+
