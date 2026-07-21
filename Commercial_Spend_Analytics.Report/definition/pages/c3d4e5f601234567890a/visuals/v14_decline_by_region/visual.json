@@ -6,7 +6,7 @@
     "visualType": "clusteredColumnChart",
     "query": {
       "queryState": {
-        "Axis": { "projections": [{ "field": { "Column": { "Expression": { "SourceRef": { "Entity": "dim_country" } }, "Property": "Region" } }, "queryRef": "dim_country.Region" }] },
+        "X": { "projections": [{ "field": { "Column": { "Expression": { "SourceRef": { "Entity": "dim_country" } }, "Property": "Region" } }, "queryRef": "dim_country.Region" }] },
         "Y": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Decline Rate" } }, "queryRef": "fact_commercialspend.Decline Rate" }] }
       },
       "sortDefinition": { "sort": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Decline Rate" } }, "direction": "Descending" }], "isDefaultSort": false }
