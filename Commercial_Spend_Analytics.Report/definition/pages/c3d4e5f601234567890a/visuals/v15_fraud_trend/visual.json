@@ -7,7 +7,7 @@
     "query": {
       "queryState": {
         "Axis": { "projections": [{ "field": { "Column": { "Expression": { "SourceRef": { "Entity": "dim_date" } }, "Property": "Year" } }, "queryRef": "dim_date.Year" }] },
-        "Values": { "projections": [
+        "Y": { "projections": [
           { "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Fraud Exposure Score" } }, "queryRef": "fact_commercialspend.Fraud Exposure Score" },
           { "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "High Fraud Transactions" } }, "queryRef": "fact_commercialspend.High Fraud Transactions" }
         ] }

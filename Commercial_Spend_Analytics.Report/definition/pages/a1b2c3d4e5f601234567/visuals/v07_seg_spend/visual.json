@@ -7,7 +7,7 @@
     "query": {
       "queryState": {
         "Category": { "projections": [{ "field": { "Column": { "Expression": { "SourceRef": { "Entity": "dim_segment" } }, "Property": "SegmentName" } }, "queryRef": "dim_segment.SegmentName" }] },
-        "Values": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Total Spend USD" } }, "queryRef": "fact_commercialspend.Total Spend USD" }] }
+        "Y": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Total Spend USD" } }, "queryRef": "fact_commercialspend.Total Spend USD" }] }
       }
     }
   },
