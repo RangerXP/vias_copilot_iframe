@@ -1,0 +1,17 @@
+{
+  "merchant_id": "Merchant",
+  "merchant_name": "Merchant",
+  "MerchantName": "Merchant",
+  "region_code": "Region",
+  "RegionName": "Region",
+  "approval_rate": "Approval Rate",
+  "ApprovalRate": "Approval Rate",
+  "decline_rate": "Decline Rate",
+  "DeclineRate": "Decline Rate",
+  "TransactionDate": "Transaction Date",
+  "txn_date": "Transaction Date",
+  "risk_score": "Risk Score",
+  "RiskScore": "Risk Score",
+  "CardProduct": "Card Product",
+  "IssuerCountry": "Issuer Country"
+}

@@ -1,0 +1,22 @@
+{
+  "name": "pbie-context-agent",
+  "version": "1.0.0",
+  "description": "Pattern 1 — PBIE Context Injection Agent (local dev server)",
+  "type": "module",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "dependencies": {
+    "@azure/ai-projects": "^1.0.0",
+    "@azure/identity": "^4.4.0",
+    "@azure/msal-node": "^2.15.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
