@@ -1,6 +1,6 @@
 # Semantic Model Metadata
 
-## Status: Data Agent provisioned — full stack live (Lakehouse → Semantic Model → Data Agent)
+## Status: Full stack live (Lakehouse → Semantic Model → Report → Data Agent)
 
 ---
 
@@ -27,6 +27,7 @@
 | `Commercial_Spend_Analytics` | Lakehouse | `1aa73044-f85f-4843-b3e5-588cab4c0499` |
 | `Commercial_Spend_Analytics` | SQLEndpoint | `eced6bb3-c201-4f20-beb1-e97dd806e0c2` |
 | `Commercial_Spend_Analytics` | SemanticModel | `b7bc94fc-a087-4e71-9476-f128ba57cf3a` |
+| `Commercial_Spend_Analytics` | Report | `e833a03b-2cf9-42d2-a1ee-a40f847fd75d` |
 | `Load_Delta_Tables` | Notebook | `1a019dbc-5136-483c-b752-f9cff8b107cf` |
 | `Commercial_Spend_Agent` | DataAgent | `d2042f7c-989f-47d2-a3b4-92603f3e55ab` |
 
