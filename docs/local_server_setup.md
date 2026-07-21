@@ -22,38 +22,49 @@ The local server is the Pattern 1 development environment — it replaces the ev
 
 ## Service Principal Setup
 
-The local server uses **App-Owns-Data** embedding, meaning it generates embed tokens on behalf of the application, not the end user.
+The local server uses **App-Owns-Data** embedding — the SP generates embed tokens on behalf of the application, not the end user.
 
-### Required API Permissions (Entra ID App Registration)
+### Confirmed SP — `VISA-PBIE-EmbedService` (registered 2026-07-21)
 
-| Permission | Type | Purpose |
-|-----------|------|---------|
-| `Power BI Service / Report.Read.All` | Application | Read reports for embed |
-| `Power BI Service / Dataset.Read.All` | Application | Access semantic model |
-| `Fabric / Item.Read.All` | Application | Access Fabric items |
+| Field | Value |
+|-------|-------|
+| App display name | `VISA-PBIE-EmbedService` |
+| Client ID | `595278db-8070-426d-85b5-7933db47de2c` |
+| SP Object ID | `9ee7391e-9fac-4bc5-ac1b-79e083aa76bd` |
+| Workspace role | **Admin** in `VISA PBIE Context Injection` (`349db6f1`) |
 
-### Add Service Principal to Fabric Workspace
+SP was added to the workspace via the **Fabric roleAssignments API** (not the Power BI workspace users API — that returns 403 during AAD propagation). See `docs/design_notes.md` Section 1 for the full `az` CLI registration sequence and Section 14 for the AAD credential timing quirk.
 
-In the Fabric workspace settings, add the service principal as a **Member** (not Viewer — embed tokens require Member or higher).
+**Admin consent is NOT required** for the client_credentials token flow. Adding the Power BI Service resource to the app registration is sufficient.
+
+### GenerateToken endpoint and effectiveIdentity
+
+The server uses the **multi-resource `GenerateToken` endpoint** (confirmed working):
+
+```
+POST https://api.powerbi.com/v1.0/myorg/GenerateToken
+```
+
+When a user UPN is supplied via `?user=<upn>`, the embed token includes an `identities[]` block (effectiveIdentity). This scopes the report to the named user's data access. If the semantic model has RLS roles, they are enforced at the Power BI engine layer — the backend never sees raw data. See `server/services/pbiClient.js` and `server/routes/embedToken.js`.
 
 ### Local `.env` File
 
+All IDs below are confirmed production values for the Pattern 2 `VISA PBIE Context Injection` workspace.
+
 ```env
-# Power BI / Fabric — MngEnvMCAP660444 tenant (CONFIRMED)
+# Power BI / Fabric — MngEnvMCAP660444 tenant
 TENANT_ID=b7e47691-9726-4f67-a302-e567815f3522
-CLIENT_ID=<service-principal-app-id>  # register SP in MngEnvMCAP660444 tenant
-CLIENT_SECRET=<service-principal-secret>
+CLIENT_ID=595278db-8070-426d-85b5-7933db47de2c
+CLIENT_SECRET=<from secure store — never commit>
 
-# VISA workspace — CONFIRMED
-WORKSPACE_ID=8dd24078-9814-4e5d-a26c-3713092564bd
-REPORT_ID=daed8d4d-2dc3-4708-ad82-5611c667498c
-DATASET_ID=5686371f-58c7-453f-89c8-26b0e2fb7f9d
+# VISA PBIE Context Injection workspace (Pattern 2)
+WORKSPACE_ID=349db6f1-5df6-4992-ba67-ebc4449fead5
+REPORT_ID=e833a03b-2cf9-42d2-a1ee-a40f847fd75d
+DATASET_ID=b7bc94fc-a087-4e71-9476-f128ba57cf3a
+AGENT_ID=d2042f7c-989f-47d2-a3b4-92603f3e55ab
+LAKEHOUSE_ID=1aa73044-f85f-4843-b3e5-588cab4c0499
 
-# Fabric Data Agent
-FABRIC_AGENT_ENDPOINT=<fabric-data-agent-url>
-FABRIC_AGENT_ID=<fabric-data-agent-id>
-
-# Foundry
+# Foundry (Sprint 4+)
 FOUNDRY_PROJECT_ENDPOINT=<foundry-project-endpoint>
 FOUNDRY_AGENT_ID=<foundry-agent-id>
 
@@ -61,7 +72,7 @@ FOUNDRY_AGENT_ID=<foundry-agent-id>
 PORT=3000
 ```
 
-> **Never commit `.env` to git.** Add `.env` to `.gitignore` immediately.
+> **Never commit `.env` to git.** It is listed in `.gitignore`. Use `.env.example` as the committed template.
 
 ---
 
@@ -130,29 +141,24 @@ app.listen(process.env.PORT || 3000, () => {
 
 ---
 
-## Embed Token Generation — `server/routes/embedToken.js`
+## Embed Token Route — `server/routes/embedToken.js`
+
+Accepts an optional `?user=<upn>` query param. When present, the UPN is passed as `effectiveIdentity` in the Power BI embed token, enforcing any RLS roles defined on the semantic model for that user.
 
 ```javascript
-import express from 'express';
-import { getEmbedToken } from '../services/pbiClient.js';
-
-const router = express.Router();
-
 router.get('/', async (req, res) => {
-  try {
-    const token = await getEmbedToken({
-      workspaceId: process.env.WORKSPACE_ID,
-      reportId: process.env.REPORT_ID,
-      datasetId: process.env.DATASET_ID
-    });
-    res.json(token);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+  const userIdentity = req.query.user ? { username: req.query.user } : undefined;
+  const token = await getEmbedToken({
+    workspaceId: process.env.WORKSPACE_ID,
+    reportId: process.env.REPORT_ID,
+    datasetId: process.env.DATASET_ID,
+    userIdentity  // undefined → no effectiveIdentity (ok for models without RLS)
+  });
+  res.json(token);
 });
-
-export default router;
 ```
+
+> **Security note (production):** the `?user=<upn>` param is trusted client input. Before production, replace with a validated session identity (signed JWT or session cookie verified server-side).
 
 ---
 
@@ -189,42 +195,22 @@ export default router;
 
 ## Embed Logic — `frontend/embed.js`
 
+The frontend reads `window.PBIE_USER_UPN` (set by the host app or server-rendered meta tag) and passes it on every token fetch — including the silent `tokenExpired` refresh — so effectiveIdentity is never dropped mid-session.
+
 ```javascript
-let embeddedReport = null;
-
-async function loadReport() {
-  const res = await fetch('/api/embed-token');
-  const { accessToken, embedUrl, reportId } = await res.json();
-
-  const models = window['powerbi-client'].models;
-
-  const config = {
-    type: 'report',
-    tokenType: models.TokenType.Embed,
-    accessToken,
-    embedUrl,
-    id: reportId,
-    settings: {
-      filterPaneEnabled: true,
-      navContentPaneEnabled: true
-    }
-  };
-
-  const reportContainer = document.getElementById('report-container');
-  embeddedReport = window.powerbi.embed(reportContainer, config);
-
-  embeddedReport.on('loaded', () => {
-    console.log('[PBIE] Report loaded');
-    window.dispatchEvent(new Event('reportReady'));
-  });
+function getUserUpn() { return window.PBIE_USER_UPN || null; }
+function embedTokenUrl(upn) {
+  return upn ? `/api/embed-token?user=${encodeURIComponent(upn)}` : '/api/embed-token';
 }
 
-export function getReport() {
-  return embeddedReport;
-}
-
-loadReport();
+// tokenExpired handler — re-sends UPN to preserve effectiveIdentity
+embeddedReport.on('tokenExpired', async () => {
+  const refreshData = await fetch(embedTokenUrl(upn)).then(r => r.json());
+  await embeddedReport.setAccessToken(refreshData.accessToken);
+});
 ```
+
+See `frontend/embed.js` for the full implementation.
 
 ---
 
@@ -244,8 +230,10 @@ Open `http://localhost:3000` — the embedded report should render.
 
 | Symptom | Likely Cause | Fix |
 |---------|-------------|-----|
-| 401 on embed token | Service principal not added to workspace | Add SP as Member in Fabric workspace settings |
-| Blank iframe | Invalid embed URL or report ID | Verify REPORT_ID in `.env` |
-| 403 on Fabric API | Tenant data plane access disabled | Enable Fabric REST API in tenant admin settings |
-| `powerbi is not defined` | CDN not loaded | Check internet access or host the library locally |
-| Token expired mid-session | Default 1hr embed token | Implement token refresh on `tokenExpired` event |
+| 401 on embed token | SP not added to workspace | Confirm SP is Admin via Fabric roleAssignments API (not PBI workspace users API) |
+| `AADSTS7000215` on SP token | AAD credential not yet propagated | Wait 35–40 seconds after `az ad app credential reset` before requesting token. See design_notes Section 14. |
+| `GenerateToken failed (403)` | SP not in workspace or wrong role | SP needs Admin or Member. Verify via Fabric portal → workspace → Manage access |
+| Blank iframe | Invalid embed URL or wrong IDs | Confirm `REPORT_ID`, `WORKSPACE_ID`, `DATASET_ID` in `.env` match Pattern 2 values |
+| 403 on Fabric API | Tenant data plane access | Fabric REST API is enabled in this tenant — check token scope (`api.fabric.microsoft.com/.default`) |
+| `powerbi is not defined` | CDN not loaded | Check internet access; the `powerbi-client` CDN link is in `frontend/index.html` |
+| Token expired mid-session | 1hr embed token default | `embed.js` handles `tokenExpired` automatically — UPN is re-sent to preserve effectiveIdentity |
