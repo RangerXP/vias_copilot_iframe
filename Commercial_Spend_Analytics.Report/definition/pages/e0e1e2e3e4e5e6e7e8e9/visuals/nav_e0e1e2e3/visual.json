@@ -1,0 +1,9 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/2.9.0/schema.json",
+  "name": "nav_e0e1e2e3",
+  "position": {"x": 20, "y": 0, "z": 1000, "width": 880, "height": 80, "tabOrder": 100},
+  "visual": {
+    "visualType": "pageNavigator"
+  },
+  "filterConfig": {"filters": []}
+}

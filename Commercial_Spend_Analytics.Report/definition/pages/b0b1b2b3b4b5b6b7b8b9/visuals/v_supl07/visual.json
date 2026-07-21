@@ -1,15 +1,1 @@
-{
-  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json",
-  "name": "v_supl07",
-  "position": {"x": 660, "y": 410, "z": 0, "width": 600, "height": 290, "tabOrder": 7000},
-  "visual": {
-    "visualType": "donutChart",
-    "query": {
-      "queryState": {
-        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_mcc"}}, "Property": "MCCGroup"}}, "queryRef": "dim_mcc.MCCGroup", "nativeQueryRef": "MCCGroup"}]},
-        "Y": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Transaction Count"}}, "queryRef": "fact_commercialspend.Transaction Count", "nativeQueryRef": "Transaction Count"}]}
-      }
-    }
-  },
-  "filterConfig": {"filters": []}
-}
+{"$schema":"https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json","name":"v_supl07","position":{"x":660,"y":490,"z":0,"width":600,"height":290,"tabOrder":7000},"visual":{"visualType":"donutChart","query":{"queryState":{"Category":{"projections":[{"field":{"Column":{"Expression":{"SourceRef":{"Entity":"dim_mcc"}},"Property":"MCCGroup"}},"queryRef":"dim_mcc.MCCGroup","nativeQueryRef":"MCCGroup"}]},"Y":{"projections":[{"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"fact_commercialspend"}},"Property":"Transaction Count"}},"queryRef":"fact_commercialspend.Transaction Count","nativeQueryRef":"Transaction Count"}]}}}},"filterConfig":{"filters":[]}}

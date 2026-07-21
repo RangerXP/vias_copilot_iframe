@@ -1,16 +1,1 @@
-{
-  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json",
-  "name": "v_supl06",
-  "position": {"x": 20, "y": 410, "z": 0, "width": 620, "height": 290, "tabOrder": 6000},
-  "visual": {
-    "visualType": "clusteredColumnChart",
-    "query": {
-      "queryState": {
-        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_merchant"}}, "Property": "MerchantName"}}, "queryRef": "dim_merchant.MerchantName", "nativeQueryRef": "MerchantName"}]},
-        "Y": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Transaction Count"}}, "queryRef": "fact_commercialspend.Transaction Count", "nativeQueryRef": "Transaction Count"}]}
-      },
-      "sortDefinition": {"sort": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Transaction Count"}}, "direction": "Descending"}], "isDefaultSort": false}
-    }
-  },
-  "filterConfig": {"filters": []}
-}
+{"$schema":"https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json","name":"v_supl06","position":{"x":20,"y":490,"z":0,"width":620,"height":290,"tabOrder":6000},"visual":{"visualType":"clusteredColumnChart","query":{"queryState":{"Category":{"projections":[{"field":{"Column":{"Expression":{"SourceRef":{"Entity":"dim_merchant"}},"Property":"MerchantName"}},"queryRef":"dim_merchant.MerchantName","nativeQueryRef":"MerchantName"}]},"Y":{"projections":[{"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"fact_commercialspend"}},"Property":"Transaction Count"}},"queryRef":"fact_commercialspend.Transaction Count","nativeQueryRef":"Transaction Count"}]}},"sortDefinition":{"sort":[{"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"fact_commercialspend"}},"Property":"Transaction Count"}},"direction":"Descending"}],"isDefaultSort":false}}},"filterConfig":{"filters":[]}}

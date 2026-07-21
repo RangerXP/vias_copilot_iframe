@@ -1,14 +1,1 @@
-{
-  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json",
-  "name": "v_fltx02",
-  "position": {"x": 420, "y": 20, "z": 0, "width": 380, "height": 90, "tabOrder": 2000},
-  "visual": {
-    "visualType": "card",
-    "query": {
-      "queryState": {
-        "Values": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Total Spend USD"}}, "queryRef": "fact_commercialspend.Total Spend USD", "nativeQueryRef": "Total Spend USD"}]}
-      }
-    }
-  },
-  "filterConfig": {"filters": []}
-}
+{"$schema":"https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json","name":"v_fltx02","position":{"x":420,"y":100,"z":0,"width":380,"height":90,"tabOrder":2000},"visual":{"visualType":"card","query":{"queryState":{"Values":{"projections":[{"field":{"Measure":{"Expression":{"SourceRef":{"Entity":"fact_commercialspend"}},"Property":"Total Spend USD"}},"queryRef":"fact_commercialspend.Total Spend USD","nativeQueryRef":"Total Spend USD"}]}}}},"filterConfig":{"filters":[]}}
