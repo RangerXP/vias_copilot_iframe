@@ -6,9 +6,6 @@
 # META   "kernel_info": {
 # META     "name": "synapse_pyspark"
 # META   },
-# META   "language_info": {
-# META     "name": "python"
-# META   },
 # META   "dependencies": {
 # META     "lakehouse": {
 # META       "default_lakehouse": "1aa73044-f85f-4843-b3e5-588cab4c0499",
@@ -46,6 +43,13 @@ TABLES = [
     "Fact_FilterSession",
 ]
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 # Load each CSV into a managed Delta table in the dbo schema
@@ -68,6 +72,13 @@ for table in TABLES:
     except AnalysisException as e:
         print(f"  ERR {qualified}: FAILED — {e}")
 
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
+
 # CELL ********************
 
 # Optimize fact tables for Direct Lake query performance
@@ -76,6 +87,13 @@ print(f"  OK  {SCHEMA}.Fact_CommercialSpend optimized")
 
 spark.sql(f"OPTIMIZE {SCHEMA}.Fact_FilterSession")
 print(f"  OK  {SCHEMA}.Fact_FilterSession optimized")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
 
 # CELL ********************
 
@@ -90,3 +108,10 @@ for table in TABLES:
         print(f"  {qualified}: ERROR — {e}")
 
 print("\nDone. Next: create Direct Lake semantic model over dbo.* tables.")
+
+# METADATA ********************
+
+# META {
+# META   "language": "python",
+# META   "language_group": "synapse_pyspark"
+# META }
