@@ -11,7 +11,7 @@ $ffs  = 'fact_filtersession'
 function Wv($pageId, $visId, $content) {
     $dir = "$base\$pageId\visuals\$visId"
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
-    Set-Content -Path "$dir\visual.json" -Value $content -Encoding UTF8
+    [System.IO.File]::WriteAllText("$dir\visual.json", $content, [System.Text.UTF8Encoding]::new($false))
 }
 
 function Wp($pageId, $content) {
@@ -43,7 +43,7 @@ function mkCard($n, $x, $y, $w, $h, $t, $ent, $prop) {
     "visualType": "card",
     "query": {
       "queryState": {
-        "Values": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "$ent"}}, "Property": "$prop"}}, "queryRef": "$ent.$prop"}]}
+        "Values": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "$ent"}}, "Property": "$prop"}}, "queryRef": "$ent.$prop", "nativeQueryRef": "$prop"}]}
       }
     }
   },
@@ -62,7 +62,7 @@ function mkCardCount($n, $x, $y, $w, $h, $t, $ent, $prop) {
     "visualType": "card",
     "query": {
       "queryState": {
-        "Y": {"projections": [{"field": {"Aggregation": {"Function": 5, "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "$ent"}}, "Property": "$prop"}}}}, "queryRef": "Count($ent.$prop)"}]}
+        "Values": {"projections": [{"field": {"Aggregation": {"Function": 5, "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "$ent"}}, "Property": "$prop"}}}}, "queryRef": "Count($ent.$prop)", "nativeQueryRef": "Count of $prop"}]}
       }
     }
   },
@@ -81,8 +81,8 @@ function mkCol($n, $x, $y, $w, $h, $t, $catEnt, $catProp, $valEnt, $valProp) {
     "visualType": "clusteredColumnChart",
     "query": {
       "queryState": {
-        "X": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "$catEnt"}}, "Property": "$catProp"}}, "queryRef": "$catEnt.$catProp"}]},
-        "Y": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "$valEnt"}}, "Property": "$valProp"}}, "queryRef": "$valEnt.$valProp"}]}
+        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "$catEnt"}}, "Property": "$catProp"}}, "queryRef": "$catEnt.$catProp", "nativeQueryRef": "$catProp"}]},
+        "Y": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "$valEnt"}}, "Property": "$valProp"}}, "queryRef": "$valEnt.$valProp", "nativeQueryRef": "$valProp"}]}
       },
       "sortDefinition": {"sort": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "$valEnt"}}, "Property": "$valProp"}}, "direction": "Descending"}], "isDefaultSort": false}
     }
@@ -102,8 +102,8 @@ function mkColCount($n, $x, $y, $w, $h, $t, $catEnt, $catProp, $cntEnt, $cntProp
     "visualType": "clusteredColumnChart",
     "query": {
       "queryState": {
-        "X": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "$catEnt"}}, "Property": "$catProp"}}, "queryRef": "$catEnt.$catProp"}]},
-        "Y": {"projections": [{"field": {"Aggregation": {"Function": 5, "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "$cntEnt"}}, "Property": "$cntProp"}}}}, "queryRef": "Count($cntEnt.$cntProp)"}]}
+        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "$catEnt"}}, "Property": "$catProp"}}, "queryRef": "$catEnt.$catProp", "nativeQueryRef": "$catProp"}]},
+        "Y": {"projections": [{"field": {"Aggregation": {"Function": 5, "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "$cntEnt"}}, "Property": "$cntProp"}}}}, "queryRef": "Count($cntEnt.$cntProp)", "nativeQueryRef": "Count of $cntProp"}]}
       }
     }
   },
@@ -122,10 +122,10 @@ function mkLine2($n, $x, $y, $w, $h, $t, $axEnt, $axProp, $m1Ent, $m1Prop, $m2En
     "visualType": "lineChart",
     "query": {
       "queryState": {
-        "Axis": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "$axEnt"}}, "Property": "$axProp"}}, "queryRef": "$axEnt.$axProp"}]},
+        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "$axEnt"}}, "Property": "$axProp"}}, "queryRef": "$axEnt.$axProp", "nativeQueryRef": "$axProp"}]},
         "Y": {"projections": [
-          {"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "$m1Ent"}}, "Property": "$m1Prop"}}, "queryRef": "$m1Ent.$m1Prop"},
-          {"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "$m2Ent"}}, "Property": "$m2Prop"}}, "queryRef": "$m2Ent.$m2Prop"}
+          {"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "$m1Ent"}}, "Property": "$m1Prop"}}, "queryRef": "$m1Ent.$m1Prop", "nativeQueryRef": "$m1Prop"},
+          {"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "$m2Ent"}}, "Property": "$m2Prop"}}, "queryRef": "$m2Ent.$m2Prop", "nativeQueryRef": "$m2Prop"}
         ]}
       },
       "sortDefinition": {"sort": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "$axEnt"}}, "Property": "$axProp"}}, "direction": "Ascending"}], "isDefaultSort": false}
@@ -146,8 +146,8 @@ function mkDonut($n, $x, $y, $w, $h, $t, $catEnt, $catProp, $valEnt, $valProp) {
     "visualType": "donutChart",
     "query": {
       "queryState": {
-        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "$catEnt"}}, "Property": "$catProp"}}, "queryRef": "$catEnt.$catProp"}]},
-        "Y": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "$valEnt"}}, "Property": "$valProp"}}, "queryRef": "$valEnt.$valProp"}]}
+        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "$catEnt"}}, "Property": "$catProp"}}, "queryRef": "$catEnt.$catProp", "nativeQueryRef": "$catProp"}]},
+        "Y": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "$valEnt"}}, "Property": "$valProp"}}, "queryRef": "$valEnt.$valProp", "nativeQueryRef": "$valProp"}]}
       }
     }
   },
