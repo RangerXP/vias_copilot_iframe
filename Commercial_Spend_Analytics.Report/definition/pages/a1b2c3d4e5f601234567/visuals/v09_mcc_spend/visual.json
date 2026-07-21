@@ -6,7 +6,7 @@
     "visualType": "clusteredBarChart",
     "query": {
       "queryState": {
-        "Y": { "projections": [{ "field": { "Column": { "Expression": { "SourceRef": { "Entity": "dim_mcc" } }, "Property": "MCCGroup" } }, "queryRef": "dim_mcc.MCCGroup" }] },
+        "Axis": { "projections": [{ "field": { "Column": { "Expression": { "SourceRef": { "Entity": "dim_mcc" } }, "Property": "MCCGroup" } }, "queryRef": "dim_mcc.MCCGroup" }] },
         "Values": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Total Spend USD" } }, "queryRef": "fact_commercialspend.Total Spend USD" }] }
       },
       "sortDefinition": { "sort": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Total Spend USD" } }, "direction": "Descending" }], "isDefaultSort": false }
