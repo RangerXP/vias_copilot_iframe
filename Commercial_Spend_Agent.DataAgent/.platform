@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/gitIntegration/platformProperties/2.0.0/schema.json",
+  "metadata": {
+    "type": "DataAgent",
+    "displayName": "Commercial_Spend_Agent"
+  },
+  "config": {
+    "version": "2.0",
+    "logicalId": "3f3e55ab-9260-a3b4-47d2-989fd2042f7c"
+  }
+}
