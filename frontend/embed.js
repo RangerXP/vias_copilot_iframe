@@ -4,16 +4,25 @@ let embeddedReport = null;
 // In production this should come from a validated session (e.g. MSAL.js ID token).
 // For dev/demo: set window.PBIE_USER_UPN before this script loads, or pass via a
 // server-side rendered meta tag.
+//
+// SECURITY NOTE (production): this UPN is trusted client-side input with no server-side
+// session binding. Before production, replace with a server-validated identity — e.g.
+// a signed JWT or session cookie that the backend verifies before issuing an embed token.
 function getUserUpn() {
   return window.PBIE_USER_UPN || null;
 }
 
+// Build the embed-token URL, always including the UPN when available so that
+// effectiveIdentity (RLS enforcement) is preserved on both initial load and token refresh.
+function embedTokenUrl(upn) {
+  return upn ? `/api/embed-token?user=${encodeURIComponent(upn)}` : '/api/embed-token';
+}
+
 async function loadReport() {
   let tokenData;
+  const upn = getUserUpn();
   try {
-    const upn = getUserUpn();
-    const url = upn ? `/api/embed-token?user=${encodeURIComponent(upn)}` : '/api/embed-token';
-    const res = await fetch(url);
+    const res = await fetch(embedTokenUrl(upn));
     if (!res.ok) throw new Error(`Embed token request failed: ${res.status}`);
     tokenData = await res.json();
   } catch (err) {
@@ -50,11 +59,12 @@ async function loadReport() {
     console.error('[PBIE] Embed error:', event.detail);
   });
 
-  // Silently re-issue embed token before 1-hour expiry
+  // Silently re-issue embed token before 1-hour expiry.
+  // Pass the same UPN so effectiveIdentity (RLS) is preserved on every refresh.
   embeddedReport.on('tokenExpired', async () => {
     console.log('[PBIE] Token expired — refreshing');
     try {
-      const refreshRes = await fetch('/api/embed-token');
+      const refreshRes = await fetch(embedTokenUrl(upn));
       const refreshData = await refreshRes.json();
       await embeddedReport.setAccessToken(refreshData.accessToken);
       console.log('[PBIE] Token refreshed');
