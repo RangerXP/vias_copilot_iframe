@@ -26,21 +26,33 @@ async function getPbiAccessToken() {
 /**
  * Generate a PBIE embed token for App-Owns-Data embedding.
  *
+ * Uses the multi-resource GenerateToken endpoint (confirmed working with VISA-PBIE-EmbedService SP).
+ * The per-report endpoint (/groups/{id}/reports/{id}/GenerateToken) uses a different body shape
+ * and was not validated against this SP — do not revert to it.
+ *
  * @param {{ workspaceId: string, reportId: string, datasetId: string, userIdentity?: { username: string, roles?: string[] } }} params
  *   userIdentity — when provided, embeds an effectiveIdentity so RLS is enforced for that user.
  *                  username should be the user's UPN (e.g. user@contoso.com).
  *                  roles is optional; required only if the model has RLS roles defined.
+ *                  The commercial spend model has no RLS — roles will be omitted unless supplied.
  *
  * Returns { accessToken, tokenId, expiration, embedUrl, reportId }
  */
 export async function getEmbedToken({ workspaceId, reportId, datasetId, userIdentity }) {
   const accessToken = await getPbiAccessToken();
 
-  const url = `https://api.powerbi.com/v1.0/myorg/groups/${workspaceId}/reports/${reportId}/GenerateToken`;
+  // Multi-resource GenerateToken endpoint — confirmed working 2026-07-21 with SP Admin workspace role.
+  const url = 'https://api.powerbi.com/v1.0/myorg/GenerateToken';
 
-  // Build request body — include effectiveIdentity when a user identity is supplied.
-  // This enforces RLS on the semantic model for external/guest users.
-  const body = { accessLevel: 'View', datasetId };
+  // Build request body using the multi-resource form.
+  // identities[] enforces RLS effectiveIdentity when a user UPN is supplied by the frontend.
+  // This is the security boundary for external/guest users — the SP generates the token but
+  // the Power BI engine scopes data access to what the named user is allowed to see.
+  const body = {
+    reports: [{ id: reportId }],
+    datasets: [{ id: datasetId }],
+    targetWorkspaces: [{ id: workspaceId }]
+  };
 
   if (userIdentity?.username) {
     body.identities = [
