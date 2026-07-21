@@ -1,0 +1,14 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json",
+  "name": "v_supl03",
+  "position": {"x": 820, "y": 20, "z": 0, "width": 440, "height": 90, "tabOrder": 3000},
+  "visual": {
+    "visualType": "card",
+    "query": {
+      "queryState": {
+        "Values": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Average Ticket USD"}}, "queryRef": "fact_commercialspend.Average Ticket USD"}]}
+      }
+    }
+  },
+  "filterConfig": {"filters": []}
+}

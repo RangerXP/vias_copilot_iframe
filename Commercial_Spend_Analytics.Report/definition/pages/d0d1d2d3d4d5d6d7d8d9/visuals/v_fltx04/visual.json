@@ -1,0 +1,15 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/visualContainer/1.5.0/schema.json",
+  "name": "v_fltx04",
+  "position": {"x": 20, "y": 130, "z": 0, "width": 600, "height": 260, "tabOrder": 4000},
+  "visual": {
+    "visualType": "clusteredColumnChart",
+    "query": {
+      "queryState": {
+        "X": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "fact_filtersession"}}, "Property": "SessionEventType"}}, "queryRef": "fact_filtersession.SessionEventType"}]},
+        "Y": {"projections": [{"field": {"Aggregation": {"Function": "Count", "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "fact_filtersession"}}, "Property": "SessionId"}}}}, "queryRef": "Count(fact_filtersession.SessionId)"}]}
+      }
+    }
+  },
+  "filterConfig": {"filters": []}
+}
