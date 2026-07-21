@@ -3,11 +3,11 @@
   "name": "v14_decline_by_region",
   "position": { "x": 640, "y": 130, "z": 0, "width": 620, "height": 260, "tabOrder": 5000 },
   "visual": {
-    "visualType": "clusteredBarChart",
+    "visualType": "clusteredColumnChart",
     "query": {
       "queryState": {
         "Axis": { "projections": [{ "field": { "Column": { "Expression": { "SourceRef": { "Entity": "dim_country" } }, "Property": "Region" } }, "queryRef": "dim_country.Region" }] },
-        "Values": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Decline Rate" } }, "queryRef": "fact_commercialspend.Decline Rate" }] }
+        "Y": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Decline Rate" } }, "queryRef": "fact_commercialspend.Decline Rate" }] }
       },
       "sortDefinition": { "sort": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Decline Rate" } }, "direction": "Descending" }], "isDefaultSort": false }
     }

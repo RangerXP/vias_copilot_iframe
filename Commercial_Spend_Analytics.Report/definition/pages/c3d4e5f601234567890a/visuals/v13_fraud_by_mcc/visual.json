@@ -3,11 +3,11 @@
   "name": "v13_fraud_by_mcc",
   "position": { "x": 20, "y": 130, "z": 0, "width": 600, "height": 260, "tabOrder": 4000 },
   "visual": {
-    "visualType": "clusteredBarChart",
+    "visualType": "clusteredColumnChart",
     "query": {
       "queryState": {
         "Axis": { "projections": [{ "field": { "Column": { "Expression": { "SourceRef": { "Entity": "dim_mcc" } }, "Property": "MCCDescription" } }, "queryRef": "dim_mcc.MCCDescription" }] },
-        "Values": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "High Fraud Transactions" } }, "queryRef": "fact_commercialspend.High Fraud Transactions" }] }
+        "Y": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "High Fraud Transactions" } }, "queryRef": "fact_commercialspend.High Fraud Transactions" }] }
       },
       "sortDefinition": { "sort": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "High Fraud Transactions" } }, "direction": "Descending" }], "isDefaultSort": false }
     }

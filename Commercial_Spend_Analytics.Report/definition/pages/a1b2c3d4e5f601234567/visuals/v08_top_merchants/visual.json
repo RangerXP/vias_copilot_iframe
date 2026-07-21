@@ -3,11 +3,11 @@
   "name": "v08_top_merchants",
   "position": { "x": 20, "y": 410, "z": 0, "width": 600, "height": 290, "tabOrder": 8000 },
   "visual": {
-    "visualType": "clusteredBarChart",
+    "visualType": "clusteredColumnChart",
     "query": {
       "queryState": {
         "Axis": { "projections": [{ "field": { "Column": { "Expression": { "SourceRef": { "Entity": "dim_merchant" } }, "Property": "MerchantName" } }, "queryRef": "dim_merchant.MerchantName" }] },
-        "Values": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Total Spend USD" } }, "queryRef": "fact_commercialspend.Total Spend USD" }] }
+        "Y": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Total Spend USD" } }, "queryRef": "fact_commercialspend.Total Spend USD" }] }
       },
       "sortDefinition": { "sort": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Total Spend USD" } }, "direction": "Descending" }], "isDefaultSort": false }
     }
