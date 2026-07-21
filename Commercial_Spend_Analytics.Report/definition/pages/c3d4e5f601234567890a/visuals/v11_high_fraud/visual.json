@@ -6,7 +6,7 @@
     "visualType": "card",
     "query": {
       "queryState": {
-        "Values": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "High Fraud Transactions" } }, "queryRef": "fact_commercialspend.High Fraud Transactions" }] }
+        "Values": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "High Fraud Transactions" } }, "queryRef": "fact_commercialspend.High Fraud Transactions", "nativeQueryRef": "High Fraud Transactions" }] }
       }
     }
   },

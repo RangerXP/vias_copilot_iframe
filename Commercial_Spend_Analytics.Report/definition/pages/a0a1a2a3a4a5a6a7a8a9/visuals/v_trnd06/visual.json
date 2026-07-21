@@ -6,10 +6,10 @@
     "visualType": "lineChart",
     "query": {
       "queryState": {
-        "Axis": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_date"}}, "Property": "Year"}}, "queryRef": "dim_date.Year"}]},
+        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_date"}}, "Property": "Year"}}, "queryRef": "dim_date.Year", "nativeQueryRef": "Year"}]},
         "Y": {"projections": [
-          {"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Average Ticket USD"}}, "queryRef": "fact_commercialspend.Average Ticket USD"},
-          {"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Interchange Revenue USD"}}, "queryRef": "fact_commercialspend.Interchange Revenue USD"}
+          {"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Average Ticket USD"}}, "queryRef": "fact_commercialspend.Average Ticket USD", "nativeQueryRef": "Average Ticket USD"},
+          {"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Interchange Revenue USD"}}, "queryRef": "fact_commercialspend.Interchange Revenue USD", "nativeQueryRef": "Interchange Revenue USD"}
         ]}
       },
       "sortDefinition": {"sort": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_date"}}, "Property": "Year"}}, "direction": "Ascending"}], "isDefaultSort": false}

@@ -6,8 +6,8 @@
     "visualType": "clusteredColumnChart",
     "query": {
       "queryState": {
-        "X": { "projections": [{ "field": { "Column": { "Expression": { "SourceRef": { "Entity": "dim_country" } }, "Property": "Region" } }, "queryRef": "dim_country.Region" }] },
-        "Y": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Decline Rate" } }, "queryRef": "fact_commercialspend.Decline Rate" }] }
+        "Category": { "projections": [{ "field": { "Column": { "Expression": { "SourceRef": { "Entity": "dim_country" } }, "Property": "Region" } }, "queryRef": "dim_country.Region", "nativeQueryRef": "Region" }] },
+        "Y": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Decline Rate" } }, "queryRef": "fact_commercialspend.Decline Rate", "nativeQueryRef": "Decline Rate" }] }
       },
       "sortDefinition": { "sort": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Decline Rate" } }, "direction": "Descending" }], "isDefaultSort": false }
     }

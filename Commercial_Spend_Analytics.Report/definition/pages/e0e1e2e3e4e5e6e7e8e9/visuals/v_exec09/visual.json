@@ -6,7 +6,7 @@
     "visualType": "card",
     "query": {
       "queryState": {
-        "Values": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Fraud Exposure Score"}}, "queryRef": "fact_commercialspend.Fraud Exposure Score"}]}
+        "Values": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Fraud Exposure Score"}}, "queryRef": "fact_commercialspend.Fraud Exposure Score", "nativeQueryRef": "Fraud Exposure Score"}]}
       }
     }
   },

@@ -6,7 +6,7 @@
     "visualType": "card",
     "query": {
       "queryState": {
-        "Values": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Decline Rate" } }, "queryRef": "fact_commercialspend.Decline Rate" }] }
+        "Values": { "projections": [{ "field": { "Measure": { "Expression": { "SourceRef": { "Entity": "fact_commercialspend" } }, "Property": "Decline Rate" } }, "queryRef": "fact_commercialspend.Decline Rate", "nativeQueryRef": "Decline Rate" }] }
       }
     }
   },

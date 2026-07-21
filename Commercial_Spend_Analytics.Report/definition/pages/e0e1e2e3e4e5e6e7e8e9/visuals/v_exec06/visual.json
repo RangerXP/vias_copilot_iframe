@@ -6,10 +6,10 @@
     "visualType": "lineChart",
     "query": {
       "queryState": {
-        "Axis": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_date"}}, "Property": "Year"}}, "queryRef": "dim_date.Year"}]},
+        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_date"}}, "Property": "Year"}}, "queryRef": "dim_date.Year", "nativeQueryRef": "Year"}]},
         "Y": {"projections": [
-          {"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Total Spend USD"}}, "queryRef": "fact_commercialspend.Total Spend USD"},
-          {"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Transaction Count"}}, "queryRef": "fact_commercialspend.Transaction Count"}
+          {"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Total Spend USD"}}, "queryRef": "fact_commercialspend.Total Spend USD", "nativeQueryRef": "Total Spend USD"},
+          {"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Transaction Count"}}, "queryRef": "fact_commercialspend.Transaction Count", "nativeQueryRef": "Transaction Count"}
         ]}
       },
       "sortDefinition": {"sort": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_date"}}, "Property": "Year"}}, "direction": "Ascending"}], "isDefaultSort": false}

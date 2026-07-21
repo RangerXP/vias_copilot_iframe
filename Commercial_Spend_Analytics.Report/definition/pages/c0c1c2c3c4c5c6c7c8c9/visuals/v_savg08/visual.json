@@ -6,8 +6,8 @@
     "visualType": "clusteredColumnChart",
     "query": {
       "queryState": {
-        "X": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_country"}}, "Property": "Region"}}, "queryRef": "dim_country.Region"}]},
-        "Y": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Approval Rate"}}, "queryRef": "fact_commercialspend.Approval Rate"}]}
+        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_country"}}, "Property": "Region"}}, "queryRef": "dim_country.Region", "nativeQueryRef": "Region"}]},
+        "Y": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Approval Rate"}}, "queryRef": "fact_commercialspend.Approval Rate", "nativeQueryRef": "Approval Rate"}]}
       },
       "sortDefinition": {"sort": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Approval Rate"}}, "direction": "Descending"}], "isDefaultSort": false}
     }

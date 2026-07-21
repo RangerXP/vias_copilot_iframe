@@ -6,8 +6,8 @@
     "visualType": "donutChart",
     "query": {
       "queryState": {
-        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_segment"}}, "Property": "SegmentName"}}, "queryRef": "dim_segment.SegmentName"}]},
-        "Y": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Total Spend USD"}}, "queryRef": "fact_commercialspend.Total Spend USD"}]}
+        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_segment"}}, "Property": "SegmentName"}}, "queryRef": "dim_segment.SegmentName", "nativeQueryRef": "SegmentName"}]},
+        "Y": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Total Spend USD"}}, "queryRef": "fact_commercialspend.Total Spend USD", "nativeQueryRef": "Total Spend USD"}]}
       }
     }
   },

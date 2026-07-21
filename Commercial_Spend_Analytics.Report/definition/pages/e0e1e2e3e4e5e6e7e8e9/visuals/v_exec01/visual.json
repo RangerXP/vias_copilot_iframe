@@ -6,7 +6,7 @@
     "visualType": "card",
     "query": {
       "queryState": {
-        "Values": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Total Spend USD"}}, "queryRef": "fact_commercialspend.Total Spend USD"}]}
+        "Values": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Total Spend USD"}}, "queryRef": "fact_commercialspend.Total Spend USD", "nativeQueryRef": "Total Spend USD"}]}
       }
     }
   },

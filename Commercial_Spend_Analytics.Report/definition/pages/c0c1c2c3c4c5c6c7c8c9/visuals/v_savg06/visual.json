@@ -6,8 +6,8 @@
     "visualType": "clusteredColumnChart",
     "query": {
       "queryState": {
-        "X": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_segment"}}, "Property": "SegmentName"}}, "queryRef": "dim_segment.SegmentName"}]},
-        "Y": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Average Ticket USD"}}, "queryRef": "fact_commercialspend.Average Ticket USD"}]}
+        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_segment"}}, "Property": "SegmentName"}}, "queryRef": "dim_segment.SegmentName", "nativeQueryRef": "SegmentName"}]},
+        "Y": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Average Ticket USD"}}, "queryRef": "fact_commercialspend.Average Ticket USD", "nativeQueryRef": "Average Ticket USD"}]}
       },
       "sortDefinition": {"sort": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Average Ticket USD"}}, "direction": "Descending"}], "isDefaultSort": false}
     }

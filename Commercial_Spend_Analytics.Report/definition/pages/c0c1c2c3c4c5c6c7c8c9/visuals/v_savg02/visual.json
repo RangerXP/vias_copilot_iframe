@@ -6,7 +6,7 @@
     "visualType": "card",
     "query": {
       "queryState": {
-        "Values": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Approval Rate"}}, "queryRef": "fact_commercialspend.Approval Rate"}]}
+        "Values": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Approval Rate"}}, "queryRef": "fact_commercialspend.Approval Rate", "nativeQueryRef": "Approval Rate"}]}
       }
     }
   },

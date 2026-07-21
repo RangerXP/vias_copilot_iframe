@@ -6,7 +6,7 @@
     "visualType": "card",
     "query": {
       "queryState": {
-        "Values": {"projections": [{"field": {"Aggregation": {"Function": 5, "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "fact_filtersession"}}, "Property": "SessionId"}}}}, "queryRef": "Count(fact_filtersession.SessionId)"}]}
+        "Values": {"projections": [{"field": {"Aggregation": {"Function": 5, "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "fact_filtersession"}}, "Property": "SessionId"}}}}, "queryRef": "Count(fact_filtersession.SessionId)", "nativeQueryRef": "SessionId)"}]}
       }
     }
   },

@@ -6,7 +6,7 @@
     "visualType": "card",
     "query": {
       "queryState": {
-        "Values": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Average Ticket USD"}}, "queryRef": "fact_commercialspend.Average Ticket USD"}]}
+        "Values": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Average Ticket USD"}}, "queryRef": "fact_commercialspend.Average Ticket USD", "nativeQueryRef": "Average Ticket USD"}]}
       }
     }
   },

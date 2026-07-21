@@ -6,8 +6,8 @@
     "visualType": "clusteredColumnChart",
     "query": {
       "queryState": {
-        "X": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "fact_filtersession"}}, "Property": "SelectedYear"}}, "queryRef": "fact_filtersession.SelectedYear"}]},
-        "Y": {"projections": [{"field": {"Aggregation": {"Function": 5, "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "fact_filtersession"}}, "Property": "SessionId"}}}}, "queryRef": "Count(fact_filtersession.SessionId)"}]}
+        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "fact_filtersession"}}, "Property": "SelectedYear"}}, "queryRef": "fact_filtersession.SelectedYear", "nativeQueryRef": "SelectedYear"}]},
+        "Y": {"projections": [{"field": {"Aggregation": {"Function": 5, "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "fact_filtersession"}}, "Property": "SessionId"}}}}, "queryRef": "Count(fact_filtersession.SessionId)", "nativeQueryRef": "SessionId)"}]}
       }
     }
   },

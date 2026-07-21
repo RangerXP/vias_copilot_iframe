@@ -6,7 +6,7 @@
     "visualType": "card",
     "query": {
       "queryState": {
-        "Values": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Transaction Count"}}, "queryRef": "fact_commercialspend.Transaction Count"}]}
+        "Values": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Transaction Count"}}, "queryRef": "fact_commercialspend.Transaction Count", "nativeQueryRef": "Transaction Count"}]}
       }
     }
   },

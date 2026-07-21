@@ -62,7 +62,7 @@ function mkCardCount($n, $x, $y, $w, $h, $t, $ent, $prop) {
     "visualType": "card",
     "query": {
       "queryState": {
-        "Values": {"projections": [{"field": {"Aggregation": {"Function": "Count", "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "$ent"}}, "Property": "$prop"}}}}, "queryRef": "Count($ent.$prop)"}]}
+        "Y": {"projections": [{"field": {"Aggregation": {"Function": 5, "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "$ent"}}, "Property": "$prop"}}}}, "queryRef": "Count($ent.$prop)"}]}
       }
     }
   },
@@ -103,7 +103,7 @@ function mkColCount($n, $x, $y, $w, $h, $t, $catEnt, $catProp, $cntEnt, $cntProp
     "query": {
       "queryState": {
         "X": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "$catEnt"}}, "Property": "$catProp"}}, "queryRef": "$catEnt.$catProp"}]},
-        "Y": {"projections": [{"field": {"Aggregation": {"Function": "Count", "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "$cntEnt"}}, "Property": "$cntProp"}}}}, "queryRef": "Count($cntEnt.$cntProp)"}]}
+        "Y": {"projections": [{"field": {"Aggregation": {"Function": 5, "Expression": {"Column": {"Expression": {"SourceRef": {"Entity": "$cntEnt"}}, "Property": "$cntProp"}}}}, "queryRef": "Count($cntEnt.$cntProp)"}]}
       }
     }
   },

@@ -6,8 +6,8 @@
     "visualType": "clusteredColumnChart",
     "query": {
       "queryState": {
-        "X": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_product"}}, "Property": "ProductName"}}, "queryRef": "dim_product.ProductName"}]},
-        "Y": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Interchange Revenue USD"}}, "queryRef": "fact_commercialspend.Interchange Revenue USD"}]}
+        "Category": {"projections": [{"field": {"Column": {"Expression": {"SourceRef": {"Entity": "dim_product"}}, "Property": "ProductName"}}, "queryRef": "dim_product.ProductName", "nativeQueryRef": "ProductName"}]},
+        "Y": {"projections": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Interchange Revenue USD"}}, "queryRef": "fact_commercialspend.Interchange Revenue USD", "nativeQueryRef": "Interchange Revenue USD"}]}
       },
       "sortDefinition": {"sort": [{"field": {"Measure": {"Expression": {"SourceRef": {"Entity": "fact_commercialspend"}}, "Property": "Interchange Revenue USD"}}, "direction": "Descending"}], "isDefaultSort": false}
     }
