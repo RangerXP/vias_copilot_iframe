@@ -31,9 +31,9 @@ async function getFabricAccessToken() {
  * @returns {Promise<string>} agent answer text
  */
 export async function queryFabricAgent({ question, context }) {
-  if (!process.env.FABRIC_AGENT_ENDPOINT || !process.env.FABRIC_AGENT_ID) {
+  if (!process.env.FABRIC_AGENT_ID) {
     throw new Error(
-      'Fabric Data Agent not configured — set FABRIC_AGENT_ENDPOINT and FABRIC_AGENT_ID in .env (Sprint 3)'
+      'Fabric Data Agent not configured — set FABRIC_AGENT_ID in .env'
     );
   }
 
