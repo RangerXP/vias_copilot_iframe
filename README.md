@@ -30,11 +30,21 @@ A **Copilot-like experience for Power BI Embedded** that works without native Co
 ```text
 Browser
   │
-  ├── PBIE iframe  ←── Fabric Semantic Model (via Fabric Data Agent)
+  ├── PBIE iframe  ──────────────► Power BI Embed / REST API
+  │     (renders report,               (App-Owns-Data token)
+  │      reports page/filter state)
   │
-  └── AI Chat Panel ←── Azure AI Foundry Agent ←── Fabric Data Agent
-                                                         │
-                                                    Fabric Semantic Model
+  └── AI Chat Panel ──► Node.js/Express backend ──► Azure AI Foundry Agent
+        (conversationId,        (context service:              │
+         question)               field_map.json)                ▼
+                                                     query_semantic_model tool
+                                                                  │
+                                                                  ▼
+                                            Power BI executeQueries REST API
+                                                                  │
+                                                                  ▼
+                                         Fabric Semantic Model (Direct Lake,
+                                         Commercial_Spend_Analytics, 250K rows)
 ```
 
 The local dev server proves out the architecture before any cloud deployment.
@@ -45,10 +55,10 @@ The local dev server proves out the architecture before any cloud deployment.
 
 | Decision | Choice | Reason |
 |----------|--------|--------|
-| Semantic model source | Microsoft Fabric (existing workspace) | Governed, production-grade model |
-| Model access layer | Fabric Data Agent | Natural language + DAX query over semantic model without raw API |
+| Semantic model source | Microsoft Fabric (Direct Lake, `Commercial_Spend_Analytics`) | Governed, production-grade model |
+| Model access layer | Power BI `executeQueries` REST API (direct DAX) | Fabric Data Agent has no public query REST endpoint (CRUD only) — pivoted to direct DAX execution via the Foundry agent's tool |
 | Iframe token source | PBIE App-Owns-Data embed token | Supports enterprise tenant without user sign-in per session |
-| AI reasoning layer | Azure AI Foundry Agent | Prompt orchestration, conversation memory, tool calling |
+| AI reasoning layer | Azure AI Foundry Agent | Prompt orchestration, multi-turn conversation memory (conversationId → thread), tool calling |
 | Local server runtime | Node.js / Express | Lightweight, easy iframe hosting, portable |
 | Context injection | Pattern 1 (from build_guide.md) | Proved pattern, no PBIE runtime modification needed |
 
@@ -91,7 +101,9 @@ The local dev server proves out the architecture before any cloud deployment.
 | Sprint 2 | Context Capture to JSON | **Complete** — context flows end-to-end into Foundry agent prompts |
 | Sprint 3 | Fabric Data Agent Integration | **Complete** (pivoted) — Power BI `executeQueries` used in place of Data Agent REST (no public query API exists) |
 | Sprint 4 | Foundry Agent + Context Injection | **Complete** — end-to-end validated: chat → Foundry agent (`gpt-5.1`) → tool call → real data → natural-language answer |
-| Sprint 5 | Semantic Query Layer Refinement | Not Started |
-| Sprint 6 | Demo Build + Talking Points | Not Started |
+| Sprint 5 | Semantic Query Layer Refinement | **Complete** — 10 DAX query shapes, `field_map.json` rewrite, context service, multi-turn conversation memory (conversationId → Foundry thread) |
+| Sprint 6 | Demo Build + Talking Points | **Complete** — `docs/demo_script.md` rewritten against the live `Commercial_Spend_Analytics` report and real validated data |
+
+**All 6 sprints complete.** The project is demo-ready end-to-end: iframe → context capture → Foundry agent → live semantic model query → natural-language answer, with multi-turn memory.
 
 **Auth boundary:** Path B active (SP + effectiveIdentity + context injection) for embed tokens. Fabric semantic model queries use `DefaultAzureCredential` (delegated user token) — SP client-credentials blocked until tenant Power BI admin enables service-principal API access.

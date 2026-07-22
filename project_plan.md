@@ -164,16 +164,21 @@ Do not answer from memory. Always query the model for data values.
 **Goal:** Produce a repeatable demo that tells the Pattern 1 story for PG review and stakeholder showcase.
 
 **Deliverables:**
-- [ ] `docs/demo_script.md` — step-by-step demo flow with talking points
-- [ ] Demo report identified in Fabric (specific pages + slicers defined)
-- [ ] Demo questions scripted and tested against live agent
-- [ ] README updated with final architecture diagram
+- [x] `docs/demo_script.md` — step-by-step demo flow with talking points, rewritten 2026-07-21 to match the live `Commercial_Spend_Analytics` report and real validated data (was previously written against fictional merchants/pages before the model existed)
+- [x] Demo report identified in Fabric — `Commercial_Spend_Analytics` report (`e833a03b-2cf9-42d2-a1ee-a40f847fd75d`), workspace `VISA PBIE Context Injection` (`349db6f1`), 7 pages (Overview, Risk & Approval, Executive Summary, Supplier Analysis, Spend Trends, Savings Opportunities, Filter Context Analysis)
+- [x] Demo questions scripted and tested against live agent — reuses the Sprint 5 validated Q&A set (approval/decline rate, top merchants, country breakdown, product mix, MCC categories, multi-turn recall)
+- [x] README updated with final architecture diagram and current sprint status
 
-**Demo Questions (Draft):**
-1. "What am I looking at?" — tests context summary
-2. "Why did approval rates decrease?" — tests trend analysis with context
-3. "Show me the highest risk merchant in this view." — tests filter-aware ranking
-4. "Explain this chart." — tests page-aware visual description
+**Demo Questions (Final, validated live 2026-07-22):**
+1. "What am I looking at?" — tests page-aware context summary
+2. "What is the approval rate versus decline rate?" — 94.9% / 3.5% (235,081 / 8,646 transactions)
+3. "Which merchants have the highest spend?" — Microsoft Merchant 0198 ($232,963), ExxonMobil Merchant 0898 ($174,976), Hilton Merchant 0714 ($161,619)
+4. "How does spend break down by country?" — United States ($18,529,767), Canada ($5,358,022), UK ($4,546,435)
+5. "What was the dollar figure you told me a moment ago?" — tests multi-turn conversation memory (thread reuse)
+
+**Validation:**
+> Full demo script walked through against the live server + Foundry agent 2026-07-21/22 — every scripted question returns a grounded, accurate answer from the real semantic model. No fictional data (e.g. Costco/Target merchants, "Customer Risk" page) remains in the script.
+> **STATUS: PASSED — Sprint 6 complete. All 6 sprints in the roadmap are now done.**
 
 ---
 
@@ -184,9 +189,9 @@ Do not answer from memory. Always query the model for data values.
 | Local web server | Node.js / Express |
 | PBIE iframe | `powerbi-client` (JS SDK) |
 | Context capture | `powerbi-client` API (`getFilters`, `getPages`, `getSlicers`) |
-| Semantic model | Microsoft Fabric — existing workspace model |
-| Model access | Fabric Data Agent (natural language + DAX over Fabric) |
-| AI reasoning | Azure AI Foundry Agent |
+| Semantic model | Microsoft Fabric — Direct Lake semantic model (`Commercial_Spend_Analytics`) |
+| Model access | Power BI `executeQueries` REST API (direct DAX execution — pivoted from Fabric Data Agent, which has no public query endpoint) |
+| AI reasoning | Azure AI Foundry Agent (`gpt-5.1`), with `query_semantic_model` tool + multi-turn conversation memory |
 | Auth (embed) | Power BI REST API — App-Owns-Data token |
 | Auth (Fabric) | Entra ID service principal or user delegation |
 
@@ -201,7 +206,7 @@ Do not answer from memory. Always query the model for data values.
 | 3 | App-Owns-Data service principal created in tenant? | Sean | Open — register in MngEnvMCAP660444 |
 | 4 | Azure AI Foundry project available or needs creation? | Sean | Open |
 | 5 | Is Premium Per User or embedded capacity available for embed tokens? | Sean | **RESOLVED — dedicated capacity cb113ec9** |
-| 6 | Target demo report identified (specific report ID)? | Sean | **RESOLVED — Visa Slicer Demo v2, page: Demo PBIP** |
+| 6 | Target demo report identified (specific report ID)? | Sean | **RESOLVED — `Commercial_Spend_Analytics` report (`e833a03b`), 7 pages, live embed target** |
 
 ---
 
