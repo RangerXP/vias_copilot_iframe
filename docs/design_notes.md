@@ -810,23 +810,25 @@ This POC's Foundry Agent query layer currently uses the identical combination (S
 
 **Decision:** Move the semantic-model query layer (currently `executeQueries` in `server/services/fabricAgent.js`) to the **XMLA endpoint**, matching the path Microsoft already recommended to VISA for RLS-enabled scenarios. This replaces the Section 5 "fallback" path as the primary query mechanism going forward.
 
-- XMLA endpoint: `powerbi://api.powerbi.com/v1.0/myorg/VISA` (workspace-scoped; confirm the exact endpoint for the `VISA PBIE Context Injection` workspace once RLS roles are added)
-- Auth: same SP client-credentials token, scope `https://analysis.windows.net/powerbi/api/.default` (already used by `scripts/configure_sp.ps1` / `scripts/validate_sp_embed.ps1` — no new auth flow required)
-- DAX execution against XMLA supports the `EffectiveUserName` connection property for per-user RLS enforcement in a way that `executeQueries` + SPN does not reliably support at scale — this is the entire reason for the migration
+- XMLA endpoint (confirmed): `powerbi://api.powerbi.com/v1.0/myorg/VISA PBIE Context Injection`
+- **Auth (validated 2026-07-22):** NOT a pre-acquired bearer token passed as `Password=`. That approach fails ("Authentication failed for all authenticators"). The working pattern is the documented MSOLAP app-only connection string: `User ID=app:<ClientId>@<TenantId>;Password=<ClientSecret>` — the MSOLAP provider performs its own client-credentials OAuth exchange using the raw secret. Same SP (`VISA-PBIE-EmbedService`) used everywhere else; no new app registration needed.
+- `Initial Catalog` must be the model's display **name** (`Commercial_Spend_Analytics`), not its GUID — the GUID form returns `PowerBIEntityNotFound`.
+- **RLS enforcement mechanism (corrected from original plan):** XMLA's `EffectiveUserName` property requires the impersonated account to be a **real Microsoft Entra ID identity** with Read+Build permission on the model — synthetic/demo UPNs (like the ones this project uses for embed-token `effectiveIdentity`) do not qualify. Instead, RLS roles are activated directly via the connection string's **`Roles=`** property ("test as role"), which our workspace-Admin SP is permitted to invoke without needing role membership. This is functionally equivalent to how `GenerateToken`'s `identities[].roles` already works for the embed token, so both surfaces now use the same synthetic-user → role mapping (`server/services/rlsTestUsers.js`).
 
 ### 15d. RLS test plan — 2 users, 2 roles, functional demo
 
 To validate RLS end-to-end, the semantic model needs real RLS roles and two test identities with different data visibility:
 
-1. **Define 2 RLS roles** in the TMDL model (e.g. `Role_RegionA` / `Role_RegionB`), each with a DAX filter expression against `Dim_Client[HomeRegion]` or `Dim_Client[ClientName]` (candidate columns already confirmed queryable — see `scripts/tmp_distinct_values.mjs` output for `dim_client[HomeRegion]` / `dim_client[ClientName]` distinct values)
-2. **Provision 2 test users** (real or synthetic UPNs) and map each to exactly one role
-3. **Embed token path**: each user's embed token continues to carry `effectiveIdentity` with their UPN + the correct `roles` array entry (this is the part that was already a placeholder — now populated for real)
-4. **Chat/agent path**: DAX queries issued via XMLA must include `EffectiveUserName` for the requesting user, so the agent's answers are scoped identically to what that user sees in the embedded report
-5. **Functional test matrix (must pass before demo):**
-   - User A sees only Region A data in the embedded report AND in chat answers
-   - User B sees only Region B data in the embedded report AND in chat answers
-   - Neither user can see the other's data via either surface (report or chat) — this is the core proof point for the demo
-   - Total/aggregate figures (e.g. "total spend") return the RLS-filtered subtotal for the requesting user, not the global total
+1. **Define 2 RLS roles** in the TMDL model — DONE: `Role_RegionA` (`dim_client[HomeRegion] = "North America"`) / `Role_RegionB` (`dim_client[HomeRegion] = "Europe"`), committed under `Commercial_Spend_Analytics.SemanticModel/definition/roles/` and referenced from `model.tmdl`. Requires an **Update from Git** sync in the Fabric workspace's Source Control panel after pushing — local TMDL edits are not live until synced.
+2. **Map 2 synthetic test users to roles** — DONE, no real Entra ID accounts needed since RLS is activated via the `Roles=` connection property rather than `EffectiveUserName` (see 15c correction). Mapping lives in `server/services/rlsTestUsers.js`: `regiona.test@visapoc.demo` → `Role_RegionA`, `regionb.test@visapoc.demo` → `Role_RegionB`.
+3. **Embed token path**: each user's embed token carries `effectiveIdentity` with their UPN + the correct `roles` array entry, resolved from the same shared map — DONE.
+4. **Chat/agent path**: DAX queries issued via XMLA activate the requesting user's mapped role(s) via `Roles=`, so the agent's answers are scoped identically to what that user sees in the embedded report — DONE.
+5. **Functional test matrix — VALIDATED 2026-07-22** (via `scripts/query_xmla.ps1` directly and via `queryFabricAgent()` end-to-end):
+   - No user / no role → `dim_client[HomeRegion]` returns all 5 values (North America, APAC, LATAM, Europe, CEMEA)
+   - `regiona.test@visapoc.demo` (Role_RegionA) → returns only "North America" ✅
+   - `regionb.test@visapoc.demo` (Role_RegionB) → returns only "Europe" ✅
+   - Neither test user's query returns the other's region — core isolation proof point confirmed at the query layer
+   - Report-side (embedded iframe) isolation still needs a manual browser round-trip test with each synthetic UPN before the demo (query-layer isolation is confirmed; report-rendering isolation is not yet separately re-validated post-migration)
 
 ### 15e. Hard constraint — embed token shape/behavior must not change
 
@@ -839,25 +841,26 @@ Company policy blocks npm packages that bypass 2FA/MFA. Most Node.js XMLA/ADOMD-
 **Solution:** Do not use a Node-native XMLA/ADOMD npm package. Instead, execute XMLA/DAX calls through a small PowerShell shim (`Invoke-ASCmd`, part of the `SqlServer` PowerShell module) invoked from Node via `child_process` — the same pattern already used for the existing `scripts/*.ps1` SP token scripts. This shim authenticates using the **same SP client-credentials token** already used everywhere else in this project (scope `https://analysis.windows.net/powerbi/api/.default`) — an app-only OAuth flow that never involves ROPC or MFA bypass, so it is not subject to the blocked-package policy.
 
 ```powershell
-# Illustrative — token acquired via existing client-credentials flow (see Section 14),
-# then passed to Invoke-ASCmd for the actual DAX/XMLA call with EffectiveUserName set
-Invoke-ASCmd -Server "asazure://api.powerbi.com/v1.0/myorg/VISA" `
-  -Database $datasetId `
-  -Query $daxQuery `
-  -ConnectionString "Provider=MSOLAP;Data Source=asazure://api.powerbi.com/v1.0/myorg/VISA;Password=$spToken;Impersonate=$effectiveUserName"
+# Actual working pattern (validated 2026-07-22) — see scripts/query_xmla.ps1 for the full script.
+# SP app-only auth via User ID=app:<ClientId>@<TenantId>, RLS role activated via Roles= property.
+$cs = "Provider=MSOLAP;Data Source=$XmlaEndpoint;Initial Catalog=$Database;" + `
+      "User ID=app:$ClientId@$TenantId;Password=$ClientSecret;" + `
+      "Persist Security Info=True;Impersonation Level=Impersonate;Roles=$Roles"
+Invoke-ASCmd -ConnectionString $cs -Query $daxQuery -QueryTimeout 60
 ```
 
-Node's `server/services/fabricAgent.js` shells out to this PowerShell script per query (or a persistent child process for lower latency) instead of calling `executeQueries` directly.
+Node's `server/services/fabricAgent.js` (`runXmlaQuery()`) shells out to `scripts/query_xmla.ps1` per query via `child_process.execFile('pwsh', ...)`, resolving the requesting user's role(s) via `rlsTestUsers.resolveRoles()` instead of `executeQueries`.
 
 ### 15g. Open items — tracked for this migration
 
 | Item | Owner | Status |
 |------|-------|--------|
-| Define 2 RLS roles in TMDL (`Role_RegionA` / `Role_RegionB`) against `Dim_Client` | Dev team | Not started |
-| Provision 2 test users, map to roles | Dev team | Not started |
-| Migrate `server/services/fabricAgent.js` from `executeQueries` to XMLA (via PowerShell `Invoke-ASCmd` shim) | Dev team | Not started |
-| Populate `roles` array in embed token `effectiveIdentity` per user (currently always empty) | Dev team | Not started |
-| Functional test: User A/User B report + chat data isolation (Section 15d matrix) | Dev team | Not started |
-| Confirm embed token request/response contract unchanged post-migration (Section 15e) | Dev team | Not started |
+| Define 2 RLS roles in TMDL (`Role_RegionA` / `Role_RegionB`) against `Dim_Client` | Dev team | ✅ Done — synced to live model 2026-07-22 |
+| Map 2 synthetic test users to roles (no real AAD accounts needed — see 15c) | Dev team | ✅ Done (`server/services/rlsTestUsers.js`) |
+| Migrate `server/services/fabricAgent.js` from `executeQueries` to XMLA (via PowerShell `Invoke-ASCmd` shim) | Dev team | ✅ Done — `USE_XMLA=true` validated end-to-end |
+| Populate `roles` array in embed token `effectiveIdentity` per user (currently always empty) | Dev team | ✅ Done |
+| Functional test: User A/User B chat data isolation (Section 15d matrix) — query layer | Dev team | ✅ Validated 2026-07-22 |
+| Functional test: User A/User B embedded **report** data isolation (browser round-trip) | Dev team | ⬜ Not yet re-verified post-migration |
+| Confirm embed token request/response contract unchanged post-migration (Section 15e) | Dev team | ✅ Verified by code inspection — no shape changes |
 
 This supersedes the "Confirm RLS status" row in Section 10's Implementation Checklist — RLS is now being actively added rather than being "not applicable."
