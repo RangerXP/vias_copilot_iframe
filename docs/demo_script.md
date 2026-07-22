@@ -5,7 +5,7 @@
 **Title:** Copilot-Like AI for Power BI Embedded — Without Native Copilot  
 **Pattern:** Context Injection Agent (Pattern 1)  
 **Audience:** PG Review / Stakeholder Showcase  
-**Duration:** 10–15 minutes  
+**Duration:** 13–18 minutes  
 
 ---
 
@@ -27,8 +27,9 @@ Before the demo, ensure:
 - [ ] Report **Commercial_Spend_Analytics** (Direct Lake, 250,000 transactions, 7 pages) loaded in iframe
 - [ ] Page: **Overview** or **Risk & Approval** active
 - [ ] Chat panel visible alongside the report
-- [ ] Network DevTools closed (clean visual) until Scene 5
+- [ ] Network DevTools closed (clean visual) until Scene 6
 - [ ] Demo questions loaded in a scratch doc (don't type live from memory)
+- [ ] Two browser tabs pre-opened for Scene 5 (RLS): `http://localhost:3000/?user=regiona.test@visapoc.demo` and `http://localhost:3000/?user=regionb.test@visapoc.demo` — confirm both load successfully **before** the demo starts (see `docs/design_notes.md` §17 for the current validated status)
 
 ---
 
@@ -107,7 +108,50 @@ Before the demo, ensure:
 
 ---
 
-## Scene 5 — Architectural Transparency (2 min)
+## Scene 5 — Customer Data Isolation via Row-Level Security (3 min)
+
+**Setup:** Have two browser tabs pre-loaded (see Demo Environment Setup checklist):
+- Tab 1: `http://localhost:3000/?user=regiona.test@visapoc.demo`
+- Tab 2: `http://localhost:3000/?user=regionb.test@visapoc.demo`
+
+**Talking Point (before switching tabs):**
+> "Everything so far has been one report, one dataset. But this is an externally embeddable, multi-customer architecture —
+> in production, different customers must only ever see their own data, enforced at the semantic model layer,
+> not just hidden in the UI.  
+>  
+> We enforce this with Row-Level Security. Each embedded session carries an **entitlement value** —
+> think of it as 'which customer/region this session is scoped to' — and the semantic model filters
+> every visual and every query to just that entitlement, automatically."
+
+**Action:** Show Tab 1 (`regiona.test@visapoc.demo`). Point to a visual or table showing `HomeRegion` / spend totals.
+
+**Expected data (validated 2026-07-22):** Only **North America** is visible — Total Spend **$15,594,460.57**, **51,476** transactions.
+
+**Action:** Switch to Tab 2 (`regionb.test@visapoc.demo`). Point to the same visual.
+
+**Expected data (validated 2026-07-22):** Only **Europe** is visible — Total Spend **$15,887,031.70**, **53,022** transactions.
+
+**Talking Point:**
+> "Same report, same embed code, two different customers — and neither one can see the other's data,
+> even though they're hitting the exact same `/api/embed-token` endpoint. The isolation is enforced
+> by Power BI's Row-Level Security engine on the semantic model itself, not by application code —
+> so there's no code path that could accidentally leak the wrong rows."
+
+**Action (optional, if time allows / audience is technical):** Open chat in one of the tabs and ask **"What region am I scoped to?"** or a spend question — show that the agent's XMLA-backed answer is also scoped identically to the embedded report, using the same entitlement value.
+
+**Talking Point (architecture, keep brief unless asked):**
+> "Under the hood, this uses a single dynamic RLS role driven by Power BI's `CUSTOMDATA()` function, rather than
+> one static role per customer. That means onboarding a new customer is just a new entitlement value —
+> no new role, no model redeploy. We validated that this dynamic approach produces byte-identical results
+> to a traditional one-role-per-customer setup, so there's no accuracy trade-off for the flexibility."
+
+**If asked "what happens with no valid entitlement?":**
+> "The request fails closed — Power BI rejects any embed token or query request that doesn't carry a valid
+> RLS-scoped identity once RLS is enabled on the model. There's no fallback path that returns unfiltered data."
+
+---
+
+## Scene 6 — Architectural Transparency (2 min)
 
 **Action:** Open DevTools → Network tab. Send a chat message. Show the `/api/chat` POST request and the JSON body.
 
@@ -122,7 +166,7 @@ Before the demo, ensure:
 
 ---
 
-## Scene 6 — Close + North Star (1 min)
+## Scene 7 — Close + North Star (1 min)
 
 **Talking Point:**
 > "This is Pattern 1 — a compatibility architecture.  
@@ -149,8 +193,11 @@ Before the demo, ensure:
 | Can this be multi-tenant? | Yes — the embed token and agent are scoped per request. Multi-tenant is a configuration concern, not architectural. |
 | Is this production-ready? | The architecture is production-viable. This demo runs on a local dev server; cloud deployment is future scope. |
 | How is this different from a chatbot? | It's context-aware — it knows what page/filters the user has active without being told, and it remembers the conversation across turns. |
-| What about data security? | The agent never has direct model access outside its tool — the tool call executes a scoped DAX query via the Power BI REST API using a governed identity. |
+| What about data security? | The agent never has direct model access outside its tool — the tool call executes a scoped DAX query against the semantic model using a governed identity, filtered by the same Row-Level Security as the embedded report (see Scene 5). |
 | Does it remember earlier questions? | Yes — each browser session gets a `conversationId` mapped to a Foundry thread server-side, so follow-ups like "what was that number again?" resolve correctly. |
+| How is customer data isolated in a multi-customer/multi-tenant embedded scenario? | Row-Level Security enforced at the semantic model layer via a single dynamic role driven by `CUSTOMDATA()` — each session's entitlement value scopes every visual and every agent query. See Scene 5 and `docs/design_notes.md` §16/§17 for the full design and comparison against static-role and `EffectiveUserName`-based alternatives. |
+| Does this scale beyond 2 test regions? | Yes — the dynamic role reads whatever entitlement value is passed in, so adding a new customer/segment is just a new value, not a new TMDL role or model redeploy. |
+| What happens if RLS isn't correctly configured for a user? | The request fails closed (Power BI rejects the request) rather than silently returning unfiltered/wrong data — there's no fallback path that leaks another customer's rows. |
 
 ---
 
@@ -169,7 +216,8 @@ Before the demo, ensure:
 | Failure | Recovery |
 |---------|---------|
 | Chat returns error | Fall back to showing the context JSON in DevTools — explain the data flow manually |
-| Iframe doesn't load | Refresh token: `curl http://localhost:3000/api/embed-token` then reload |
+| Iframe doesn't load | Refresh token: `curl "http://localhost:3000/api/embed-token?user=regiona.test@visapoc.demo"` then reload — bare `/api/embed-token` with no `?user=` will fail by design once RLS is enabled (see Scene 5) |
 | Foundry agent timeout | Acknowledge, note it's a dev environment without prod capacity |
 | Incorrect answer | Acknowledge it as a calibration item — note `field_map.json` and the DAX pattern library (`semantic/dax/query_patterns.md`) are where accuracy improvements land |
 | Wrong number recalled on follow-up | Check server log for `reusing thread` vs `created thread` — confirms whether conversation memory picked up the right session |
+| Scene 5 (RLS) tab shows the wrong region or an error | Confirm the URL's `?user=` value is exactly `regiona.test@visapoc.demo` or `regionb.test@visapoc.demo` (typos silently fall through to "no identity", which now fails closed); as a last resort, run `.\scripts\compare_rls_mechanisms.ps1` to confirm RLS is healthy at the XMLA layer and narrow whether the issue is report-side or model-side |
