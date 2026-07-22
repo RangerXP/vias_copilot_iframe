@@ -19,6 +19,13 @@
       </div>
     </div>
   </div>
+  <script>
+    // Dev/demo only: select a test user via ?user=<upn> query param so RLS
+    // effectiveIdentity can be exercised without a real auth session
+    // (docs/design_notes.md Section 15d). Must run before embed.js/chat.js.
+    var __testUser = new URLSearchParams(window.location.search).get('user');
+    if (__testUser) window.PBIE_USER_UPN = __testUser;
+  </script>
   <script type="module" src="embed.js"></script>
   <script type="module" src="chat.js"></script>
 </body>

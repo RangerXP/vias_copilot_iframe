@@ -47,7 +47,15 @@
 
 .PARAMETER Roles
   Optional comma-separated list of model role names to activate for this query
-  (RLS enforcement) — e.g. "Role_RegionA".
+  (RLS enforcement) — e.g. "Role_RegionA", or "Role_Entitlement" when combined
+  with -CustomData for CUSTOMDATA()-based dynamic RLS (docs/design_notes.md
+  Section 16).
+
+.PARAMETER CustomData
+  Optional value for the connection string's CustomData property, retrieved
+  server-side via the CUSTOMDATA() DAX function. Used together with
+  -Roles Role_Entitlement to drive dynamic, entitlement-based RLS instead of
+  one static role per value.
 
 .OUTPUTS
   JSON array of row objects, written to stdout.
@@ -59,7 +67,8 @@ param(
     [Parameter(Mandatory = $true)][string]$ClientId,
     [Parameter(Mandatory = $true)][string]$ClientSecret,
     [Parameter(Mandatory = $true)][string]$TenantId,
-    [string]$Roles
+    [string]$Roles,
+    [string]$CustomData
 )
 
 $ErrorActionPreference = 'Stop'
@@ -81,6 +90,9 @@ $connStringParts = @(
 )
 if ($Roles) {
     $connStringParts += "Roles=$Roles"
+}
+if ($CustomData) {
+    $connStringParts += "CustomData=$CustomData"
 }
 $connectionString = ($connStringParts -join ';')
 

@@ -30,11 +30,14 @@ async function getPbiAccessToken() {
  * The per-report endpoint (/groups/{id}/reports/{id}/GenerateToken) uses a different body shape
  * and was not validated against this SP — do not revert to it.
  *
- * @param {{ workspaceId: string, reportId: string, datasetId: string, userIdentity?: { username: string, roles?: string[] } }} params
+ * @param {{ workspaceId: string, reportId: string, datasetId: string, userIdentity?: { username: string, roles?: string[], customData?: string } }} params
  *   userIdentity — when provided, embeds an effectiveIdentity so RLS is enforced for that user.
  *                  username should be the user's UPN (e.g. user@contoso.com).
- *                  roles is optional; required only if the model has RLS roles defined.
- *                  The commercial spend model has no RLS — roles will be omitted unless supplied.
+ *                  roles is optional; only needed when a static Roles-based RLS role should be activated.
+ *                  customData carries an entitlement value for CUSTOMDATA()-based dynamic RLS
+ *                  (see docs/design_notes.md Section 16) — retrieved server-side via CUSTOMDATA()
+ *                  in the model's Role_Entitlement TMDL role, the same mechanism XMLA's `CustomData`
+ *                  connection-string property feeds into CUSTOMDATA()/CustomData().
  *
  * Returns { accessToken, tokenId, expiration, embedUrl, reportId }
  */
@@ -59,7 +62,8 @@ export async function getEmbedToken({ workspaceId, reportId, datasetId, userIden
       {
         username: userIdentity.username,
         datasets: [datasetId],
-        ...(userIdentity.roles?.length ? { roles: userIdentity.roles } : {})
+        ...(userIdentity.roles?.length ? { roles: userIdentity.roles } : {}),
+        ...(userIdentity.customData ? { customData: userIdentity.customData } : {})
       }
     ];
   }

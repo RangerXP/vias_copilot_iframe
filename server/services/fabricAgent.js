@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { resolveRoles } from './rlsTestUsers.js';
+import { resolveRoles, resolveEntitlement, ENTITLEMENT_ROLE_NAME } from './rlsTestUsers.js';
 
 const execFileAsync = promisify(execFile);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -174,15 +174,20 @@ async function getPowerBIToken() {
  * This is a different tenant permission gate than the one that blocks SP
  * client-credentials for executeQueries, so it's viable here.
  *
- * RLS enforcement: since effectiveUserName here is a synthetic test UPN (not a real
- * Entra ID account), we cannot use XMLA's EffectiveUserName property. Instead we
- * resolve the mapped role(s) via rlsTestUsers.resolveRoles() and activate them
- * through the connection string's `Roles` property.
+ * RLS enforcement (docs/design_notes.md Section 16): since effectiveUserName here is a
+ * synthetic test UPN (not a real Entra ID account), we cannot use XMLA's EffectiveUserName
+ * property. Default mechanism is entitlement-based dynamic RLS via CUSTOMDATA(): we resolve
+ * the user's entitlement value via rlsTestUsers.resolveEntitlement() and activate it through
+ * the connection string's `Roles=Role_Entitlement` + `CustomData=<value>` properties — a
+ * single dynamic TMDL role (dim_client[HomeRegion] = CUSTOMDATA()) evaluates it, replacing
+ * the need for one static role per value. Pass rlsMode: 'static' to fall back to the
+ * legacy per-value Roles= mapping (rlsTestUsers.resolveRoles()) for comparison purposes
+ * (see scripts/compare_rls_mechanisms.ps1).
  *
- * @param {{ query: string, effectiveUserName?: string }} params
+ * @param {{ query: string, effectiveUserName?: string, rlsMode?: 'entitlement'|'static' }} params
  * @returns {Promise<Array<object>>} normalized rows (already clean column names)
  */
-async function runXmlaQuery({ query, effectiveUserName }) {
+async function runXmlaQuery({ query, effectiveUserName, rlsMode = 'entitlement' }) {
   const xmlaEndpoint = process.env.XMLA_ENDPOINT;
   const datasetName = process.env.DATASET_NAME || 'Commercial_Spend_Analytics';
   const clientId = process.env.CLIENT_ID;
@@ -194,7 +199,17 @@ async function runXmlaQuery({ query, effectiveUserName }) {
     throw new Error('CLIENT_ID/CLIENT_SECRET/TENANT_ID must be set in .env (required when USE_XMLA=true)');
   }
 
-  const roles = resolveRoles(effectiveUserName);
+  let roles = [];
+  let customData;
+  if (rlsMode === 'static') {
+    roles = resolveRoles(effectiveUserName);
+  } else {
+    const entitlement = resolveEntitlement(effectiveUserName);
+    if (entitlement) {
+      roles = [ENTITLEMENT_ROLE_NAME];
+      customData = entitlement;
+    }
+  }
 
   const args = [
     '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
@@ -208,6 +223,9 @@ async function runXmlaQuery({ query, effectiveUserName }) {
   ];
   if (roles.length) {
     args.push('-Roles', roles.join(','));
+  }
+  if (customData) {
+    args.push('-CustomData', customData);
   }
 
   let stdout;
@@ -266,10 +284,10 @@ function normalizeRows(rows) {
  * Execute a DAX query against the Fabric semantic model via the Power BI REST API.
  * Uses the service principal (CLIENT_ID/CLIENT_SECRET) which has Admin access to the workspace.
  *
- * @param {{ question: string, context?: object, daxQuery?: string, effectiveUserName?: string }} params
+ * @param {{ question: string, context?: object, daxQuery?: string, effectiveUserName?: string, rlsMode?: 'entitlement'|'static' }} params
  * @returns {Promise<string>} query results as formatted text for the Foundry agent to interpret
  */
-export async function queryFabricAgent({ question, context, daxQuery, effectiveUserName }) {
+export async function queryFabricAgent({ question, context, daxQuery, effectiveUserName, rlsMode }) {
   const query = daxQuery ?? pickDax(question);
   const contextNote = context
     ? Object.entries(context).map(([k, v]) => `${k}=${v}`).join(', ')
@@ -279,7 +297,7 @@ export async function queryFabricAgent({ question, context, daxQuery, effectiveU
   // path once RLS is validated; defaults to the existing executeQueries REST path
   // until the functional RLS test matrix (Section 15d) has passed.
   if (process.env.USE_XMLA === 'true') {
-    const rows = await runXmlaQuery({ query, effectiveUserName });
+    const rows = await runXmlaQuery({ query, effectiveUserName, rlsMode });
     if (!rows.length) return JSON.stringify({ error: 'No data returned from semantic model.', question });
     return JSON.stringify({
       source: 'Power BI semantic model (XMLA)',

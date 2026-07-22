@@ -25,4 +25,5 @@ ref table dim_country
 
 ref role Role_RegionA
 ref role Role_RegionB
+ref role Role_Entitlement
 

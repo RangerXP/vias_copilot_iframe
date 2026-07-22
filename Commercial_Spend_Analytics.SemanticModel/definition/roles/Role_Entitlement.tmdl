@@ -1,0 +1,4 @@
+role Role_Entitlement
+	modelPermission: read
+
+	tablePermission dim_client = dim_client[HomeRegion] = CUSTOMDATA()
