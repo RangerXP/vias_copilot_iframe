@@ -228,8 +228,9 @@ The VISA workspace is on a **dedicated Fabric capacity**:
 
 | Field | Value |
 |-------|-------|
-| Capacity ID | `cb113ec9-926c-4af4-99fe-0b5b55fb69b6` |
-| Capacity Name | `fabcmksettlement` |
+| Capacity Name | [fabriccapwest3](https://portal.azure.com/#resource/subscriptions/0a913923-fe62-46fb-8fdd-b78fb498f7a9/resourceGroups/Fabric-West3-RG/providers/Microsoft.Fabric/capacities/fabriccapwest3) |
+| Subscription | `0a913923-fe62-46fb-8fdd-b78fb498f7a9` |
+| Resource Group | `Fabric-West3-RG` |
 | Workspace | VISA (`8dd24078-9814-4e5d-a26c-3713092564bd`) |
 
 Embed tokens can be generated without a per-user Power BI Pro or Premium Per User license because the workspace is backed by dedicated capacity. The **service principal** generating the embed token does not itself need a Power BI license.
@@ -506,7 +507,7 @@ DATASET_ID     = b7bc94fc-a087-4e71-9476-f128ba57cf3a   # SemanticModel
 REPORT_ID      = e833a03b-2cf9-42d2-a1ee-a40f847fd75d   # Report
 AGENT_ID       = d2042f7c-989f-47d2-a3b4-92603f3e55ab   # DataAgent
 LAKEHOUSE_ID   = 1aa73044-f85f-4843-b3e5-588cab4c0499
-CAPACITY_ID    = cb113ec9-926c-4af4-99fe-0b5b55fb69b6
+CAPACITY_NAME  = fabriccapwest3   # see docs/design_notes.md Section 3 for portal link
 CLIENT_ID      = 595278db-8070-426d-85b5-7933db47de2c   # SP app ID
 ```
 

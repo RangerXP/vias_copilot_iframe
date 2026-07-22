@@ -67,7 +67,7 @@ The local dev server proves out the architecture before any cloud deployment.
 ## Prerequisites
 
 - [x] Microsoft Fabric workspace — `VISA PBIE Context Injection` confirmed (`349db6f1`)
-- [x] Power BI Embedded capacity — `fabcmksettlement` (`cb113ec9-926c-4af4-99fe-0b5b55fb69b6`)
+- [x] Power BI Embedded capacity — [fabriccapwest3](https://portal.azure.com/#resource/subscriptions/0a913923-fe62-46fb-8fdd-b78fb498f7a9/resourceGroups/Fabric-West3-RG/providers/Microsoft.Fabric/capacities/fabriccapwest3)
 - [x] Node.js 20+ installed and `npm install` run
 - [x] Azure CLI installed and authenticated
 - [x] Fabric tenant policy `ElevatedGuestsTenant` enabled

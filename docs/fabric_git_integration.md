@@ -19,7 +19,7 @@ Fabric Git Integration syncs Fabric items (notebooks, semantic models, reports i
 | Requirement | Status |
 |-------------|--------|
 | GitHub repo connected to VISA PBIE Context Injection workspace | ✅ Connected (2026-07-21) |
-| Fabric capacity assigned to workspace (`fabcmksettlement`) | ✅ Confirmed |
+| Fabric capacity assigned to workspace (`fabriccapwest3`) | ✅ Confirmed |
 | `Commercial_Spend_Analytics` Lakehouse created | ✅ Created (`1aa73044-f85f-4843-b3e5-588cab4c0499`) |
 | All 10 CSV files uploaded to Lakehouse Files/ root | ✅ Confirmed (2026-07-21) |
 | Delta tables loaded (notebook run) | ⏳ Next step |
@@ -172,7 +172,7 @@ TENANT_ID=b7e47691-9726-4f67-a302-e567815f3522
 WORKSPACE_ID=<visa-pbie-context-injection-workspace-id>
 REPORT_ID=<new-report-id>
 DATASET_ID=<semantic-model-id>
-CAPACITY_ID=cb113ec9-926c-4af4-99fe-0b5b55fb69b6
+CAPACITY_NAME=fabriccapwest3   # see docs/design_notes.md Section 3 for portal link
 CLIENT_ID=<service-principal-client-id>
 CLIENT_SECRET=<service-principal-secret>
 FABRIC_AGENT_ENDPOINT=https://api.fabric.microsoft.com/v1/workspaces/<workspace-id>/dataagentruns
