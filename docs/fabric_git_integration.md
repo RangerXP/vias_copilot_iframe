@@ -130,7 +130,7 @@ Open the model in the web editor or connect via XMLA endpoint and add the measur
 
 ## Step 6 — Wire the Fabric Git Integration (source control)
 
-The workspace is already connected to the `main` branch of `https://github.com/RangerXP/vias_copilot_iframe`.
+The workspace is connected to the **`branch`** branch of `https://github.com/RangerXP/visa_copilot_iframe` (not `main` — `main` is a stale early snapshot; `branch` is the actively synced, canonical working branch and should be used for all pushes and PRs against this project). This corrects an earlier version of this doc that referenced `main`.
 
 To sync Fabric items back to the repo:
 

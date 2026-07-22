@@ -91,7 +91,7 @@ The local dev server proves out the architecture before any cloud deployment.
 
 ## Repository
 
-**GitHub:** https://github.com/RangerXP/vias_copilot_iframe
+**GitHub:** https://github.com/RangerXP/visa_copilot_iframe (working branch: **`branch`** — this is where Fabric's Git integration syncs and where all commits should be pushed; `main` is a stale early snapshot, not actively used)
 
 ---
 
