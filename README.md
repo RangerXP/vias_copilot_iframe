@@ -6,6 +6,16 @@ This project implements a **local Power BI Embedded (PBIE) development server** 
 
 ---
 
+## The Problem
+
+Power BI Embedded reports rendered inside a third-party iframe have no native Copilot/chat experience — end users can see charts and filters, but they can't ask natural-language questions about what's on screen, and the host application has no way to ground an AI assistant in the same data (and the same row-level security) that the report itself enforces. Standing up that experience safely requires solving several problems at once: how to query the semantic model programmatically without bypassing RLS, how to keep the chat agent's answers consistent with what's rendered in the report, and how to do all of this for external/synthetic customer identities that don't have real Microsoft Entra ID accounts (App-Owns-Data, not user sign-in).
+
+## The Solution
+
+A Node.js/Express server hosts the PBIE iframe alongside a chat panel. The chat panel captures the report's current page/filter context and sends it to an **Azure AI Foundry agent**, which answers questions by querying the same **Fabric Direct Lake semantic model** (`Commercial_Spend_Analytics`) the report itself is built on — via the **XMLA endpoint** (service-principal, app-only OAuth) rather than the more limited `executeQueries` REST API. Row-Level Security is enforced identically on both surfaces through a single dynamic TMDL role (`Role_Entitlement`, driven by `CUSTOMDATA()`), so the same entitlement value scopes both the rendered report and the agent's query results — no unfiltered fallback path exists on either surface. The result is a Copilot-like chat experience layered on top of an embedded report, fully consistent with what the user is authorized to see, without requiring native Copilot support inside the iframe or real end-user Entra ID identities.
+
+---
+
 ## Quick Navigation
 
 | File | Purpose |
