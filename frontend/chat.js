@@ -1,4 +1,4 @@
-import { getReport, getUserUpn } from './embed.js';
+import { getReport } from './embed.js';
 import { captureContext } from './context-capture/captureContext.js';
 
 const chatInput = document.getElementById('chat-input');
@@ -48,15 +48,15 @@ async function handleSend() {
   try {
     const res = await fetch('/api/chat', {
       method: 'POST',
+      credentials: 'include',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         question,
         rawContext,
-        conversationId: getConversationId(),
-        // Same UPN used for the embed token's effectiveIdentity (embed.js) — so
-        // XMLA queries in the chat/agent path enforce RLS for the same user
-        // (docs/design_notes.md Section 15d).
-        user: getUserUpn()
+        conversationId: getConversationId()
+        // No client-supplied identity here — the server resolves RLS entitlement from
+        // the session cookie established at login (docs/design_notes.md §17), the same
+        // session the embed token endpoint (embed.js) uses.
       })
     });
     const data = await res.json();

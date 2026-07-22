@@ -29,7 +29,7 @@ Before the demo, ensure:
 - [ ] Chat panel visible alongside the report
 - [ ] Network DevTools closed (clean visual) until Scene 6
 - [ ] Demo questions loaded in a scratch doc (don't type live from memory)
-- [ ] Two browser tabs pre-opened for Scene 5 (RLS): `http://localhost:3000/?user=regiona.test@visapoc.demo` and `http://localhost:3000/?user=regionb.test@visapoc.demo` — confirm both load successfully **before** the demo starts (see `docs/design_notes.md` §17 for the current validated status)
+- [ ] Two browser tabs (or one regular + one private/incognito, since sessions are now cookie-based) pre-opened at `http://localhost:3000/` — in Tab 1 sign in as “Contoso — North America”, in Tab 2 sign in as “Contoso — Europe” via the login screen; confirm both load successfully **before** the demo starts (see `docs/design_notes.md` §17 for the current validated status)
 
 ---
 
@@ -110,9 +110,9 @@ Before the demo, ensure:
 
 ## Scene 5 — Customer Data Isolation via Row-Level Security (3 min)
 
-**Setup:** Have two browser tabs pre-loaded (see Demo Environment Setup checklist):
-- Tab 1: `http://localhost:3000/?user=regiona.test@visapoc.demo`
-- Tab 2: `http://localhost:3000/?user=regionb.test@visapoc.demo`
+**Setup:** Have two browser sessions pre-loaded (see Demo Environment Setup checklist) — sessions are now cookie-based (`docs/design_notes.md` §17), so use a regular window for one and a private/incognito window for the other so the cookies don't collide:
+- Tab 1: `http://localhost:3000/`, signed in as **Contoso — North America** via the login screen
+- Tab 2 (incognito): `http://localhost:3000/`, signed in as **Contoso — Europe** via the login screen
 
 **Talking Point (before switching tabs):**
 > "Everything so far has been one report, one dataset. But this is an externally embeddable, multi-customer architecture —
@@ -216,8 +216,8 @@ Before the demo, ensure:
 | Failure | Recovery |
 |---------|---------|
 | Chat returns error | Fall back to showing the context JSON in DevTools — explain the data flow manually |
-| Iframe doesn't load | Refresh token: `curl "http://localhost:3000/api/embed-token?user=regiona.test@visapoc.demo"` then reload — bare `/api/embed-token` with no `?user=` will fail by design once RLS is enabled (see Scene 5) |
+| Iframe doesn't load | Reload the page and re-sign-in via the login screen (`POST /api/session/login`) — `/api/embed-token` fails by design with `401` if there's no session, and with `403` if the signed-in customer has no resolvable entitlement (see Scene 5) |
 | Foundry agent timeout | Acknowledge, note it's a dev environment without prod capacity |
 | Incorrect answer | Acknowledge it as a calibration item — note `field_map.json` and the DAX pattern library (`semantic/dax/query_patterns.md`) are where accuracy improvements land |
 | Wrong number recalled on follow-up | Check server log for `reusing thread` vs `created thread` — confirms whether conversation memory picked up the right session |
-| Scene 5 (RLS) tab shows the wrong region or an error | Confirm the URL's `?user=` value is exactly `regiona.test@visapoc.demo` or `regionb.test@visapoc.demo` (typos silently fall through to "no identity", which now fails closed); as a last resort, run `.\scripts\compare_rls_mechanisms.ps1` to confirm RLS is healthy at the XMLA layer and narrow whether the issue is report-side or model-side |
+| Scene 5 (RLS) tab shows the wrong region or an error | Confirm you signed in as the intended demo customer on the login screen (session cookies are per-browser-profile, so use a private/incognito window for the second tab); as a last resort, run `.\scripts\compare_rls_mechanisms.ps1` to confirm RLS is healthy at the XMLA layer and narrow whether the issue is report-side or model-side |

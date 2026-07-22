@@ -210,7 +210,24 @@ Do not answer from memory. Always query the model for data values.
 
 **Validation:**
 > Post-sync XMLA check: per-year `Spend YoY %` populated correctly (2025 = +2.4%, 2026 = -1.9%, 2024 = blank/no prior year); unfiltered KPI-card value (-1.9%) matches the latest-year row exactly. Confirmed visually by the user in the live report.
-> **STATUS: PASSED — Sprint 8 complete. All 8 sprints in the roadmap are now done.**
+> **STATUS: PASSED — Sprint 8 complete.**
+
+---
+
+## Sprint 9 — Auth Hardening (Fail-Closed Checks + Server-Managed Session)
+
+**Goal:** Close two open security-posture items: make the fail-closed RLS behavior an explicit app-level check instead of relying on Power BI's own error, and replace the unauthenticated `?user=<upn>` transport with a real server-managed session.
+
+**Deliverables:**
+- [x] `server/routes/embedToken.js` now rejects (`401`/`403`) before ever calling `GenerateToken` if there's no session, or the session's customer doesn't resolve to a known entitlement
+- [x] `server/routes/chat.js` rejects (`401`) if there's no session, instead of trusting a client-supplied `user` body field
+- [x] Added `express-session` + `server/routes/session.js` (`POST /login`, `GET /me`, `POST /logout`) — an HTTP-only, signed session cookie now carries the resolved `customerId`; no route accepts identity from a query param or request body anymore
+- [x] `frontend/session.js` + a login screen (`frontend/index.html`) replace the old `?user=` query-param/`window.PBIE_USER_UPN` mechanism; `embed.js`/`chat.js` send `credentials: 'include'` instead of any client-held identifier
+- [x] `docs/design_notes.md` (§17d), `docs/local_server_setup.md`, and `docs/demo_script.md` updated to describe the session-based flow and the new login steps for the Scene 5 RLS demo
+
+**Validation:**
+> Cookie-jar HTTP client walkthrough: `/api/embed-token` and `/api/chat` both `401` pre-login; login with an unknown `customerId` returns `401`; login with a known `customerId` returns `200` and sets the session cookie; both routes then succeed using only the cookie, with no identity present in the URL or body.
+> **STATUS: PASSED — Sprint 9 complete. All 9 sprints in the roadmap are now done.**
 
 ---
 

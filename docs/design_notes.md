@@ -4,7 +4,7 @@
 **Prepared for:** Customer Implementation Team  
 **Pattern:** Host-App Filter Injection + FilterSession Context Grounding  
 **Tenant:** `MngEnvMCAP660444.onmicrosoft.com`  
-**Last updated:** 2026-07-22 (rev 4 — `Spend YoY %` KPI card bug diagnosed and fixed, see Section 18; entitlement-based dynamic RLS live end-to-end; Direct Lake fixed-identity/SSO binding resolved; see Section 17 for current security posture)  
+**Last updated:** 2026-07-22 (rev 5 — fail-closed hardening implemented and unauthenticated `?user=` transport replaced with a server-managed session, see §17d; `Spend YoY %` KPI card bug diagnosed and fixed, see Section 18; entitlement-based dynamic RLS live end-to-end; Direct Lake fixed-identity/SSO binding resolved; see Section 17 for current security posture)  
 **Redesign note:** Project scope updated 2026-07-21 from Pattern 1 (slicer-read context injection) to Pattern 2 (host-app filter injection via `setFilters()` + `Fact_FilterSession` grounding). See Section 4 for the updated context flow and Section 11 for the new data model.
 
 ---
@@ -278,7 +278,7 @@ The host app maintains a `filterState` object in memory (or in React/component s
 const filterState = {
   sessionId: crypto.randomUUID(),
   timestamp: new Date().toISOString(),
-  userId: window.PBIE_USER_UPN,
+  userId: '<resolved server-side from the session cookie, never client-supplied — §17d>',
   reportId: '<reportId>',
   page: { name: 'Demo PBIP', displayName: 'Demo PBIP' },
   filters: [
@@ -490,7 +490,7 @@ If full user-delegated Fabric access is required in production (agent queries ru
 - SP makes all Fabric/Foundry API calls
 - Embed token includes `effectiveIdentity` (user's UPN) when provided → RLS enforced at report layer
 - Context injection constrains agent queries to the user's visible report state
-- User identity is passed as a query param to `/api/embed-token?user=<upn>` (to be replaced with a validated session token before production)
+- User identity is resolved server-side from a session cookie (`req.session.customerId`, established via `POST /api/session/login`) — **resolved 2026-07-22, see §17d**; no client-supplied query param or body field is trusted for identity/entitlement anymore
 
 ---
 
@@ -652,8 +652,8 @@ The file `embedded_filter_context_schema.json` (included in the starter package)
 |------|-------|--------|
 | Configure Entra cross-tenant access policy to allow B2B inbound for external orgs | Customer tenant admin | Not started |
 | Scope to specific app registration (`VISA-PBIE-EmbedService`) in inbound policy | Customer tenant admin | Not started |
-| Replace `?user=<upn>` query param with validated session identity | Dev team | Not started |
-| Add MSAL.js to frontend for guest user sign-in | Dev team | Not started |
+| Replace `?user=<upn>` query param with a server-managed session | Dev team | ✅ **Done 2026-07-22** — see §17d; still a PoC-level login (no real IdP validation yet) |
+| Add MSAL.js to frontend for guest user sign-in, and validate the resulting ID token server-side in `POST /api/session/login` | Dev team | Not started |
 | Switch `fabricAgent.js` to use user-delegated token when present | Dev team | Not started |
 
 ---
@@ -950,10 +950,23 @@ The `Roles=` requirement itself is intrinsic to how App-Owns-Data RLS works for 
 | Embed token transport | `GenerateToken` REST API, `effectiveIdentity` with `roles` + `customData` | ✅ Working — `200` for both test entitlements |
 | Data-plane binding | Direct Lake datasource bound to a fixed-identity cloud connection (service-principal auth, Entra ID SSO **disabled**) | ✅ Resolved 2026-07-22 (previously the long-standing `403` blocker) |
 | Fail-closed behavior | Requests with no identity, or an unresolvable user, are rejected by the app itself (`401`/`403`) before calling `GenerateToken` | ✅ Confirmed working, explicit app-level check implemented 2026-07-22 |
-| Frontend UPN transport | `?user=<upn>` query param, unauthenticated | ⚠️ Known open risk — acceptable for local dev/demo only, **not production-safe**; needs a real session/auth mechanism before any production use |
+| Frontend identity transport | Server-managed session (`express-session`, HTTP-only cookie) established via `POST /api/session/login`; the embed-token and chat routes resolve the entitlement from `req.session`, never from a client-supplied query param or body field | ✅ **Resolved 2026-07-22** — replaced the unauthenticated `?user=<upn>` query param (see §17d) |
 | Secret hygiene | `CLIENT_SECRET` for `VISA-PBIE-EmbedService` | ✅ **Rotated 2026-07-22** after exposure in a chat attachment — post-rotation smoke test confirmed SP auth, embed token generation, RLS, and XMLA connectivity all unaffected. **Two separate Fabric/Power BI-side credential stores** were found stale for the OneLake data source: (1) the Fabric `/v1/connections` object `VISA-PBIE-FixedIdentity-DirectLake` — fixed via `PATCH /v1/connections/{id}` (SP-callable, since the SP owns that connection); (2) the classic Power BI gateway-datasource binding surfaced under the semantic model's own Settings → "Gateway and cloud connections" — this one was configured via the portal by a human user, so SP app-only calls get `DMTS_NotEnoughPermissionToManangeDatasourceErrorCode`; requires a manual **Edit credentials** step in the portal |
 
-**Net assessment:** no unfiltered data-access fallback path exists once RLS roles are defined; the entitlement value is the single source of truth for filtering on both the embed and query surfaces; the SP has no standing broad access outside the fixed-identity connection's scope. Residual risk is operational (rotate the exposed secret) and defense-in-depth (make the fail-closed path an explicit rejection, and replace the unauthenticated `?user=` query param before production).
+**Net assessment:** no unfiltered data-access fallback path exists once RLS roles are defined; the entitlement value is the single source of truth for filtering on both the embed and query surfaces; the SP has no standing broad access outside the fixed-identity connection's scope. Residual risk is now purely operational/architectural for a real production rollout: this PoC's `POST /api/session/login` still accepts a bare `customerId` as a stand-in for a genuine Visa Portal login (MSAL.js + Entra ID validating an ID token, or an existing portal SSO session) — see §17d for what closing that gap for real production would require.
+
+### 17d. Session-based entitlement resolution (resolved 2026-07-22)
+
+Replaced the unauthenticated `?user=<upn>` query-param/body-field transport (both `/api/embed-token` and `/api/chat` accepted it directly from the client) with a server-managed session:
+
+- `server/routes/session.js` — `POST /api/session/login` (accepts `{ customerId }`, validates against `CUSTOMER_DIRECTORY` in `rlsTestUsers.js`, establishes `req.session.customerId`), `GET /api/session/me`, `POST /api/session/logout`.
+- `express-session` middleware (`server/index.js`) — HTTP-only, `sameSite: lax`, `secure` in production, signed with `SESSION_SECRET`.
+- `server/routes/embedToken.js` and `server/routes/chat.js` now read `req.session.customerId` exclusively — no query param or request body field influences the resolved identity/entitlement on either route anymore.
+- `frontend/session.js` — new login-overlay UI (`frontend/index.html`) with two demo "Sign in as…" buttons; calls `/api/session/login`, then triggers `embed.js`'s `loadReport()`. `frontend/embed.js`/`chat.js` no longer read or transmit `window.PBIE_USER_UPN`/`?user=` at all — every request just sends `credentials: 'include'`.
+
+**Validated 2026-07-22** via direct HTTP calls (cookie-jar client): `/api/embed-token` and `/api/chat` both return `401` pre-login, login with an unknown `customerId` returns `401`, login with a known `customerId` returns `200` + sets the cookie, and both routes succeed post-login using only the cookie (no identity in the URL/body).
+
+**What full production would still add** (this PoC intentionally stops short of it): replace `POST /api/session/login`'s trust-the-request-body check with real validation of an MSAL.js-acquired Entra ID ID token (or an existing portal SSO session) before establishing `req.session` — i.e. authenticate the *person*, then resolve *their* entitlement from a real customer/entitlement service, rather than trusting a bare `customerId` value. The entitlement-resolution → `CUSTOMDATA()` → `Role_Entitlement` pipeline downstream of that point is unchanged and already production-shaped.
 
 ---
 

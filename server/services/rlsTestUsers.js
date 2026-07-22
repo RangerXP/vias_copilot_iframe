@@ -60,3 +60,37 @@ export function resolveRoles(user) {
   if (!user) return [];
   return TEST_USER_ROLES[user] ?? [];
 }
+
+// --- Server-managed session identity (docs/design_notes.md §17) ---------------
+// Replaces the old unauthenticated `?user=`/body.user transport. The security
+// boundary is the RESOLVED ENTITLEMENT VALUE, not any user identifier — a real
+// deployment would populate this directory (or query a customer/entitlement
+// service) after validating a portal session (e.g. MSAL.js + Entra ID), not
+// trust a client-supplied identifier directly. The keys below (e.g.
+// 'regiona.test@visapoc.demo') are treated as opaque customerId values resolved
+// server-side from `req.session` — see server/routes/session.js — never read
+// from client-supplied query params or request bodies.
+export const CUSTOMER_DIRECTORY = {
+  'regiona.test@visapoc.demo': { displayName: 'Contoso — North America', entitlement: 'North America' },
+  'regionb.test@visapoc.demo': { displayName: 'Contoso — Europe', entitlement: 'Europe' }
+};
+
+/**
+ * Resolve an authenticated session's customerId to its display name, for UI purposes only
+ * (never used for authorization — that's `resolveEntitlement`/`resolveRoles` above).
+ * @param {string|undefined|null} customerId
+ * @returns {string|undefined}
+ */
+export function resolveCustomerDisplayName(customerId) {
+  return CUSTOMER_DIRECTORY[customerId]?.displayName;
+}
+
+/**
+ * True if customerId is a known, authenticatable customer (used by the login route
+ * to validate the session-establishment request itself).
+ * @param {string|undefined|null} customerId
+ * @returns {boolean}
+ */
+export function isKnownCustomer(customerId) {
+  return Boolean(customerId && CUSTOMER_DIRECTORY[customerId]);
+}

@@ -12,6 +12,55 @@ body {
   height: 100vh;
 }
 
+/* ── Login overlay (PoC session establishment, docs/design_notes.md §17) ──── */
+#login-overlay {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#login-card {
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 32px;
+  max-width: 420px;
+  text-align: center;
+}
+
+#login-card h1 {
+  font-size: 1.25rem;
+  margin-bottom: 12px;
+}
+
+#login-card p {
+  margin-bottom: 16px;
+  color: #4b5563;
+}
+
+#login-card button {
+  display: block;
+  width: 100%;
+  margin-bottom: 10px;
+  padding: 10px 16px;
+  background: #464feb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.95rem;
+}
+
+#login-card button:hover {
+  opacity: 0.9;
+}
+
+.login-error {
+  color: #b91c1c;
+  min-height: 1.2em;
+}
+
 /* ── Report pane ──────────────────────────────── */
 #report-container {
   flex: 1 1 0;

@@ -117,8 +117,9 @@ The local dev server proves out the architecture before any cloud deployment.
 | Sprint 6 | Demo Build + Talking Points | **Complete** — `docs/demo_script.md` rewritten against the live `Commercial_Spend_Analytics` report and real validated data |
 | Sprint 7 | XMLA Migration + Entitlement-Based RLS | **Complete** — query layer migrated to XMLA, `Role_Entitlement` dynamic RLS role live, Direct Lake fixed-identity/SSO binding resolved, embed tokens validated for both test entitlements |
 | Sprint 8 | Data Correctness — `Spend YoY %` Fix + Credential Hygiene | **Complete** — diagnosed and fixed a `Spend YoY %` KPI bug (blank/incorrect year-over-year values) via empirical XMLA testing; rotated the SP client secret and resolved two separate stale Fabric/Power BI credential stores uncovered in the process. See [docs/design_notes.md](docs/design_notes.md) §18 |
+| Sprint 9 | Auth Hardening — Fail-Closed Checks + Server-Managed Session | **Complete** — added explicit app-level fail-closed checks to `/api/embed-token` and `/api/chat`; replaced the unauthenticated `?user=<upn>` query param/body field with a server-managed session (`express-session` + `POST /api/session/login`), so RLS entitlement is resolved server-side from a cookie, never client-supplied input. See [docs/design_notes.md](docs/design_notes.md) §17d |
 
-**All 8 sprints complete.** The project is demo-ready end-to-end: iframe → context capture → Foundry agent → live semantic model query → natural-language answer, with multi-turn memory, and the headline KPI cards now show validated, correct year-over-year figures.
+**All 9 sprints complete.** The project is demo-ready end-to-end: iframe → context capture → Foundry agent → live semantic model query → natural-language answer, with multi-turn memory, the headline KPI cards show validated, correct year-over-year figures, and identity/RLS enforcement no longer trusts any client-supplied identifier.
 
 **Auth boundary:** SP client-credentials (`VISA-PBIE-EmbedService`) used consistently across both surfaces — embed tokens (`GenerateToken` + `effectiveIdentity`) and semantic model queries (XMLA via `Invoke-ASCmd`, app-only OAuth). No delegated/user token dependency remains.
 
@@ -135,11 +136,11 @@ This replaced an earlier design that used one static TMDL role per customer segm
 
 | Control | Status |
 |---|---|
-| Single SP identity, tenant-homed, used consistently for embed tokens + XMLA queries | ✅ |
-| Dynamic entitlement-based RLS, validated identical to static roles at the XMLA layer | ✅ |
-| Direct Lake datasource bound to fixed-identity connection (SSO disabled) | ✅ |
-| Embed tokens with `effectiveIdentity` succeed for both test entitlements; requests with no identity fail closed | ✅ |
+| Single SP identity, tenant-homed, used consistently for embed tokens + XMLA queries | ✅ `VISA-PBIE-EmbedService` (`595278db`), Admin on the workspace — same credentials drive both `GenerateToken` and the XMLA `Invoke-ASCmd` shim, no other identity is ever used |
+| Dynamic entitlement-based RLS, validated identical to static roles at the XMLA layer | ✅ `Role_Entitlement` (`CUSTOMDATA()`) validated via `scripts/compare_rls_mechanisms.ps1` — byte-identical row sets vs. the legacy static `Role_RegionA`/`Role_RegionB` roles for both test entitlements |
+| Direct Lake datasource bound to fixed-identity connection (SSO disabled) | ✅ Resolved the long-standing `403 not supported for this datasource` blocker; connection is portal-bound to the SP with Entra ID SSO explicitly disabled |
+| Embed tokens with `effectiveIdentity` succeed for both test entitlements; requests with no identity fail closed | ✅ `200` confirmed for both `regiona.test@visapoc.demo`/`regionb.test@visapoc.demo`; a bare `GenerateToken` call with no identity returns `400` once any RLS role is defined on the model |
 | Fail-closed hardening as an explicit app-level check (vs. relying on platform default) | ✅ `server/routes/embedToken.js` rejects with `401`/`403` before ever calling `GenerateToken` if no user is supplied or no entitlement/role resolves for them |
-| Frontend `?user=<upn>` transport is unauthenticated | ⚠️ Dev/demo only — not production-safe |
+| Frontend `?user=<upn>` transport is unauthenticated | ✅ Replaced with a server-managed session (`express-session` + `POST /api/session/login`) — entitlement is resolved from `req.session`, never a client-supplied param. PoC-level login only; see [docs/design_notes.md](docs/design_notes.md) §17d for what real production auth (MSAL.js + Entra ID) would still add |
 
 Full detail: [docs/design_notes.md](docs/design_notes.md) §15 (XMLA/RLS migration), §16 (CUSTOMDATA() entitlement design + Static/EffectiveUserName/CUSTOMDATA() comparison), §17 (current security posture snapshot).

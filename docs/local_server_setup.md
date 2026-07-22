@@ -45,7 +45,7 @@ The server uses the **multi-resource `GenerateToken` endpoint** (confirmed worki
 POST https://api.powerbi.com/v1.0/myorg/GenerateToken
 ```
 
-When a user UPN is supplied via `?user=<upn>`, the embed token includes an `identities[]` block (effectiveIdentity). This scopes the report to the named user's data access. If the semantic model has RLS roles, they are enforced at the Power BI engine layer — the backend never sees raw data. See `server/services/pbiClient.js` and `server/routes/embedToken.js`.
+**Updated 2026-07-22:** identity is resolved from the server-managed session (`req.session.customerId`, established via `POST /api/session/login` — see §17 in `docs/design_notes.md`), never from a client-supplied query param. When a session exists, the embed token includes an `identities[]` block (effectiveIdentity) driven by the session's resolved entitlement. This scopes the report to that customer's data access — RLS is enforced at the Power BI engine layer, and the backend never sees raw data. See `server/services/pbiClient.js`, `server/routes/session.js`, and `server/routes/embedToken.js`.
 
 ### Local `.env` File
 
@@ -143,22 +143,28 @@ app.listen(process.env.PORT || 3000, () => {
 
 ## Embed Token Route — `server/routes/embedToken.js`
 
-Accepts an optional `?user=<upn>` query param. When present, the UPN is passed as `effectiveIdentity` in the Power BI embed token, enforcing any RLS roles defined on the semantic model for that user.
+**Updated 2026-07-22 (docs/design_notes.md §17):** identity comes from `req.session.customerId`, established by a prior `POST /api/session/login` call — never from a query param or request body. The route fails closed (`401`/`403`) if there's no session or the session's customer doesn't resolve to a known entitlement, before ever calling `GenerateToken`.
 
 ```javascript
 router.get('/', async (req, res) => {
-  const userIdentity = req.query.user ? { username: req.query.user } : undefined;
+  const customerId = req.session.customerId;
+  if (!customerId) return res.status(401).json({ error: 'Not signed in.' });
+
+  const customData = resolveEntitlement(customerId);
+  if (!customData) return res.status(403).json({ error: `No entitlement resolved for customer '${customerId}'.` });
+
+  const userIdentity = { username: customerId, roles: [ENTITLEMENT_ROLE_NAME], customData };
   const token = await getEmbedToken({
     workspaceId: process.env.WORKSPACE_ID,
     reportId: process.env.REPORT_ID,
     datasetId: process.env.DATASET_ID,
-    userIdentity  // undefined → no effectiveIdentity (ok for models without RLS)
+    userIdentity
   });
   res.json(token);
 });
 ```
 
-> **Security note (production):** the `?user=<upn>` param is trusted client input. Before production, replace with a validated session identity (signed JWT or session cookie verified server-side).
+> **Production note:** this PoC's `POST /api/session/login` accepts a bare `customerId` as a stand-in for a real Visa Portal login. Production should validate an MSAL.js-acquired Entra ID token (or existing portal SSO session) before establishing `req.session` — the rest of the pipeline (session → resolved entitlement → `CUSTOMDATA()`) stays the same.
 
 ---
 
@@ -195,17 +201,11 @@ router.get('/', async (req, res) => {
 
 ## Embed Logic — `frontend/embed.js`
 
-The frontend reads `window.PBIE_USER_UPN` (set by the host app or server-rendered meta tag) and passes it on every token fetch — including the silent `tokenExpired` refresh — so effectiveIdentity is never dropped mid-session.
+**Updated 2026-07-22:** the frontend no longer holds or transmits any user identifier. `frontend/session.js` establishes the session cookie via `POST /api/session/login` (a PoC stand-in for real portal/MSAL.js login), and every embed-token fetch — including the silent `tokenExpired` refresh — just sends `credentials: 'include'` so the cookie rides along automatically.
 
 ```javascript
-function getUserUpn() { return window.PBIE_USER_UPN || null; }
-function embedTokenUrl(upn) {
-  return upn ? `/api/embed-token?user=${encodeURIComponent(upn)}` : '/api/embed-token';
-}
-
-// tokenExpired handler — re-sends UPN to preserve effectiveIdentity
 embeddedReport.on('tokenExpired', async () => {
-  const refreshData = await fetch(embedTokenUrl(upn)).then(r => r.json());
+  const refreshData = await fetch('/api/embed-token', { credentials: 'include' }).then(r => r.json());
   await embeddedReport.setAccessToken(refreshData.accessToken);
 });
 ```

@@ -11,7 +11,15 @@ router.post('/', async (req, res) => {
   // so top-level module constants would see undefined env vars.
   const USE_FOUNDRY = Boolean(process.env.FOUNDRY_AGENT_ID && process.env.FOUNDRY_PROJECT_ENDPOINT);
   try {
-    const { question, rawContext, conversationId: clientConversationId, user: effectiveUserName } = req.body;
+    const { question, rawContext, conversationId: clientConversationId } = req.body;
+
+    // Identity source: the authenticated session (docs/design_notes.md §17), NEVER a
+    // client-supplied body field. This keeps the chat/XMLA RLS boundary identical to
+    // the embed-token path (server/routes/embedToken.js) — the same session drives both.
+    const effectiveUserName = req.session.customerId;
+    if (!effectiveUserName) {
+      return res.status(401).json({ error: 'Not signed in. Call POST /api/session/login first.' });
+    }
 
     if (!question || typeof question !== 'string') {
       return res.status(400).json({ error: 'question (string) is required' });

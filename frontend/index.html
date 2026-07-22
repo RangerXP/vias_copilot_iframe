@@ -8,7 +8,16 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div id="app-container">
+  <div id="login-overlay">
+    <div id="login-card">
+      <h1>Analytics Assistant — Sign In</h1>
+      <p>PoC login: pick a demo customer to establish a server-managed session (docs/design_notes.md &sect;17).</p>
+      <button data-customer-id="regiona.test@visapoc.demo">Sign in as Contoso — North America</button>
+      <button data-customer-id="regionb.test@visapoc.demo">Sign in as Contoso — Europe</button>
+      <p id="login-error" class="login-error"></p>
+    </div>
+  </div>
+  <div id="app-container" style="display:none">
     <div id="report-container"></div>
     <div id="chat-container">
       <div id="chat-header">Analytics Assistant</div>
@@ -19,13 +28,7 @@
       </div>
     </div>
   </div>
-  <script>
-    // Dev/demo only: select a test user via ?user=<upn> query param so RLS
-    // effectiveIdentity can be exercised without a real auth session
-    // (docs/design_notes.md Section 15d). Must run before embed.js/chat.js.
-    var __testUser = new URLSearchParams(window.location.search).get('user');
-    if (__testUser) window.PBIE_USER_UPN = __testUser;
-  </script>
+  <script type="module" src="session.js"></script>
   <script type="module" src="embed.js"></script>
   <script type="module" src="chat.js"></script>
 </body>
