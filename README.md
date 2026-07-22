@@ -139,7 +139,7 @@ This replaced an earlier design that used one static TMDL role per customer segm
 | Dynamic entitlement-based RLS, validated identical to static roles at the XMLA layer | ✅ |
 | Direct Lake datasource bound to fixed-identity connection (SSO disabled) | ✅ |
 | Embed tokens with `effectiveIdentity` succeed for both test entitlements; requests with no identity fail closed | ✅ |
-| Fail-closed hardening as an explicit app-level check (vs. relying on platform default) | ⬜ Not yet implemented |
+| Fail-closed hardening as an explicit app-level check (vs. relying on platform default) | ✅ `server/routes/embedToken.js` rejects with `401`/`403` before ever calling `GenerateToken` if no user is supplied or no entitlement/role resolves for them |
 | Frontend `?user=<upn>` transport is unauthenticated | ⚠️ Dev/demo only — not production-safe |
 
 Full detail: [docs/design_notes.md](docs/design_notes.md) §15 (XMLA/RLS migration), §16 (CUSTOMDATA() entitlement design + Static/EffectiveUserName/CUSTOMDATA() comparison), §17 (current security posture snapshot).
