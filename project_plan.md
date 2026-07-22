@@ -139,13 +139,23 @@ Do not answer from memory. Always query the model for data values.
 **Pattern source:** build_guide.md — Phase 2 (Context Service) + Phase 4 (Query Layer)
 
 **Deliverables:**
-- [ ] `semantic/dax/` — example DAX patterns for agent tool calls
-- [ ] `semantic/metadata/field_map.json` — PBIE field name → business name mapping
-- [ ] Context service middleware: normalize PBIE state to business-friendly context
-- [ ] Multi-page context (page transitions preserved in conversation)
+- [x] `semantic/dax/` — example DAX patterns for agent tool calls — 10 shapes documented in [semantic/dax/query_patterns.md](semantic/dax/query_patterns.md) (summary, trend, segment, merchant, country, product, MCC, approval, fraud, industry), backed by matching keyword-routed query templates in `server/services/fabricAgent.js`
+- [x] `semantic/metadata/field_map.json` — PBIE field name → business name mapping — rewritten 2026-07-22 against the confirmed TMDL schema (was stale/mismatched placeholder data referencing fields that don't exist in the model)
+- [x] Context service middleware: normalize PBIE state to business-friendly context — `server/services/contextService.js` (`normalizeContext`/`buildContextBlock`), pre-existing and confirmed working
+- [ ] Multi-page context (page transitions preserved in conversation) — **NOT implemented.** `sendToFoundryAgent()` creates a brand-new thread on every `/api/chat` call, so there is no conversation memory across turns today. Needs a session-to-thread mapping (e.g. keyed by browser session or a client-supplied conversation ID) before this can be validated.
 
 **Validation:**
 > Ask multi-turn questions across two pages. Context is coherent across turns. Field names are human-readable in all responses.
+> **STATUS: PARTIAL** — validated 2026-07-22: merchant/country/product/MCC/approval/fraud breakdown questions all return correct, human-readable, natural-language answers end-to-end (see examples below). Multi-page conversational memory across turns is still open — single-turn context injection (page/filters/slicers) works, but there's no thread persistence between requests.
+>
+> Example validated Q&A:
+> - "Which merchants have the highest spend?" → ranked top-10 list with merchant names and dollar amounts
+> - "Which countries have the most spend?" → "United States at about $18,529,767... Canada... United Kingdom... India... Germany"
+> - "How does spend break down by product?" → ranked list of Visa product lines with spend
+> - "What merchant categories have the most spend?" → "Hospitals... Business Services... Subscription Services..."
+> - "What is the approval rate versus decline rate?" → "approval rate is 94.9% and the decline rate is 3.5%..."
+>
+> Bug found + fixed during validation: `pickDax()` keyword regexes used `\b` word boundaries and exact-word matches that failed on plural forms the model naturally uses in tool calls (e.g. `/merchant\b/` didn't match "merchants", `/country/` didn't match "countries", `/industry/` didn't match "industries"). Fixed to prefix-style matching (`/merchant/`, `/countr/`, `/industr/`).
 
 ---
 

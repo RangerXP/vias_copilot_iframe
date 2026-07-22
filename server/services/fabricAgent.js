@@ -1,7 +1,11 @@
 import { DefaultAzureCredential } from '@azure/identity';
 
-// DAX query that returns all key measures — used as the default data pull.
-// The Foundry agent (gpt-4o) interprets these results to answer the user's question.
+// ── DAX query library ────────────────────────────────────────────────────────
+// Each shape maps to a common analytics question pattern. pickDax() routes the
+// user's question to the closest-matching shape. See semantic/dax/query_patterns.md
+// for the full reference and semantic/metadata/field_map.json for column labels.
+
+// Default: all key measures — used when no specific breakdown is requested.
 const SUMMARY_DAX = `
 EVALUATE
 UNION(
@@ -26,10 +30,104 @@ SUMMARIZECOLUMNS(
 ORDER BY dim_date[Year] ASC
 `.trim();
 
+// Spend by client segment (dim_segment, joined via fact_commercialspend[SegmentKey]).
 const SEGMENT_DAX = `
 EVALUATE
 SUMMARIZECOLUMNS(
-  fact_commercialspend[SegmentName],
+  dim_segment[SegmentName],
+  "Total Spend USD",   [Total Spend USD],
+  "Transaction Count", [Transaction Count]
+)
+ORDER BY [Total Spend USD] DESC
+`.trim();
+
+// Top merchants by spend.
+const MERCHANT_DAX = `
+EVALUATE
+TOPN(
+  10,
+  SUMMARIZECOLUMNS(
+    dim_merchant[MerchantName],
+    "Total Spend USD",   [Total Spend USD],
+    "Transaction Count", [Transaction Count]
+  ),
+  [Total Spend USD], DESC
+)
+ORDER BY [Total Spend USD] DESC
+`.trim();
+
+// Spend by country / region.
+const COUNTRY_DAX = `
+EVALUATE
+SUMMARIZECOLUMNS(
+  dim_country[CountryName],
+  dim_country[Region],
+  "Total Spend USD",   [Total Spend USD],
+  "Transaction Count", [Transaction Count]
+)
+ORDER BY [Total Spend USD] DESC
+`.trim();
+
+// Spend by product / product family.
+const PRODUCT_DAX = `
+EVALUATE
+SUMMARIZECOLUMNS(
+  dim_product[ProductName],
+  dim_product[ProductFamily],
+  "Total Spend USD",   [Total Spend USD],
+  "Transaction Count", [Transaction Count]
+)
+ORDER BY [Total Spend USD] DESC
+`.trim();
+
+// Spend by merchant category (MCC).
+const MCC_DAX = `
+EVALUATE
+TOPN(
+  10,
+  SUMMARIZECOLUMNS(
+    dim_mcc[MCCDescription],
+    dim_mcc[MCCGroup],
+    "Total Spend USD",   [Total Spend USD],
+    "Transaction Count", [Transaction Count]
+  ),
+  [Total Spend USD], DESC
+)
+ORDER BY [Total Spend USD] DESC
+`.trim();
+
+// Approval / decline breakdown by status.
+const APPROVAL_DAX = `
+EVALUATE
+SUMMARIZECOLUMNS(
+  dim_approvalstatus[ApprovalStatus],
+  "Transaction Count", [Transaction Count],
+  "Total Spend USD",   [Total Spend USD]
+)
+ORDER BY [Transaction Count] DESC
+`.trim();
+
+// Risk / fraud breakdown by merchant category group (highest fraud exposure first).
+const FRAUD_DAX = `
+EVALUATE
+TOPN(
+  10,
+  SUMMARIZECOLUMNS(
+    dim_mcc[MCCGroup],
+    "Fraud Exposure Score",     [Fraud Exposure Score],
+    "High Fraud Transactions",  [High Fraud Transactions],
+    "Transaction Count",        [Transaction Count]
+  ),
+  [Fraud Exposure Score], DESC
+)
+ORDER BY [Fraud Exposure Score] DESC
+`.trim();
+
+// Spend by client industry.
+const INDUSTRY_DAX = `
+EVALUATE
+SUMMARIZECOLUMNS(
+  dim_client[Industry],
   "Total Spend USD",   [Total Spend USD],
   "Transaction Count", [Transaction Count]
 )
@@ -52,10 +150,21 @@ async function getPowerBIToken() {
   return tokenResponse.token;
 }
 
+/**
+ * Route a natural-language question to the closest-matching DAX shape.
+ * Order matters — more specific patterns are checked before general ones.
+ */
 function pickDax(question) {
   const q = (question ?? '').toLowerCase();
+  if (/fraud|risk score|high.risk/.test(q)) return FRAUD_DAX;
+  if (/approv|declin/.test(q)) return APPROVAL_DAX;
+  if (/merchant categor|\bmcc\b/.test(q)) return MCC_DAX;
+  if (/merchant/.test(q)) return MERCHANT_DAX;
+  if (/countr|region/.test(q)) return COUNTRY_DAX;
+  if (/product/.test(q)) return PRODUCT_DAX;
+  if (/industr/.test(q)) return INDUSTRY_DAX;
+  if (/segment|vertical/.test(q)) return SEGMENT_DAX;
   if (/trend|year|yoy|over.time|annual|by year/.test(q)) return TREND_DAX;
-  if (/segment|industry|vertical|sector/.test(q)) return SEGMENT_DAX;
   return SUMMARY_DAX;
 }
 
