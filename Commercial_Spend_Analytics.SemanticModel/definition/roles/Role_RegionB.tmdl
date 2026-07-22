@@ -1,0 +1,4 @@
+role Role_RegionB
+	modelPermission: read
+
+	tablePermission dim_client = dim_client[HomeRegion] = "Europe"

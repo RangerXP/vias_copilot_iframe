@@ -10,7 +10,7 @@ annotation __PBI_TimeIntelligenceEnabled = 1
 
 annotation PBI_QueryOrder = ["DirectLake - Commercial_Spend_Analytics"]
 
-annotation PBI_ProTooling = ["DirectLakeOnOneLakeInWeb","MCP-PBIModeling"]
+annotation PBI_ProTooling = ["DirectLakeOnOneLakeInWeb","MCP-PBIModeling","TMDL-Extension"]
 
 ref table fact_commercialspend
 ref table fact_filtersession
@@ -22,4 +22,7 @@ ref table dim_client
 ref table dim_merchant
 ref table dim_approvalstatus
 ref table dim_country
+
+ref role Role_RegionA
+ref role Role_RegionB
 

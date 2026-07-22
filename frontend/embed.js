@@ -8,7 +8,7 @@ let embeddedReport = null;
 // SECURITY NOTE (production): this UPN is trusted client-side input with no server-side
 // session binding. Before production, replace with a server-validated identity — e.g.
 // a signed JWT or session cookie that the backend verifies before issuing an embed token.
-function getUserUpn() {
+export function getUserUpn() {
   return window.PBIE_USER_UPN || null;
 }
 

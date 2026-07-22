@@ -1,5 +1,6 @@
 import express from 'express';
 import { getEmbedToken } from '../services/pbiClient.js';
+import { TEST_USER_ROLES } from '../services/rlsTestUsers.js';
 
 const router = express.Router();
 
@@ -9,8 +10,14 @@ const router = express.Router();
 router.get('/', async (req, res) => {
   try {
     // userIdentity is optional — when supplied, embed token enforces RLS for that user.
-    const userIdentity = req.query.user
-      ? { username: req.query.user }
+    // roles is resolved from the known test-user map above; falls back to an explicit
+    // ?role= override (comma-separated) for ad-hoc testing against other role names.
+    const user = req.query.user;
+    const roles = TEST_USER_ROLES[user]
+      ?? (req.query.role ? String(req.query.role).split(',').map(r => r.trim()) : undefined);
+
+    const userIdentity = user
+      ? { username: user, ...(roles?.length ? { roles } : {}) }
       : undefined;
 
     const token = await getEmbedToken({

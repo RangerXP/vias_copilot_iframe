@@ -11,7 +11,7 @@ router.post('/', async (req, res) => {
   // so top-level module constants would see undefined env vars.
   const USE_FOUNDRY = Boolean(process.env.FOUNDRY_AGENT_ID && process.env.FOUNDRY_PROJECT_ENDPOINT);
   try {
-    const { question, rawContext, conversationId: clientConversationId } = req.body;
+    const { question, rawContext, conversationId: clientConversationId, user: effectiveUserName } = req.body;
 
     if (!question || typeof question !== 'string') {
       return res.status(400).json({ error: 'question (string) is required' });
@@ -31,10 +31,10 @@ router.post('/', async (req, res) => {
       const userTurn = contextBlock
         ? `[Report Context]\n${contextBlock}\n\n[User Question]\n${question}`
         : question;
-      answer = await sendToFoundryAgent({ userTurn, conversationId });
+      answer = await sendToFoundryAgent({ userTurn, conversationId, effectiveUserName });
     } else {
       // Direct Fabric Data Agent path (used when FOUNDRY_AGENT_ID is not configured)
-      answer = await queryFabricAgent({ question, context: businessContext });
+      answer = await queryFabricAgent({ question, context: businessContext, effectiveUserName });
     }
 
     res.json({ answer, conversationId });

@@ -1,4 +1,13 @@
 import { DefaultAzureCredential } from '@azure/identity';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
+import { resolveRoles } from './rlsTestUsers.js';
+
+const execFileAsync = promisify(execFile);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const XMLA_SCRIPT_PATH = path.join(__dirname, '..', '..', 'scripts', 'query_xmla.ps1');
 
 // ── DAX query library ────────────────────────────────────────────────────────
 // Each shape maps to a common analytics question pattern. pickDax() routes the
@@ -151,6 +160,70 @@ async function getPowerBIToken() {
 }
 
 /**
+ * Execute a DAX query against the semantic model via the XMLA endpoint, shelling out to
+ * scripts/query_xmla.ps1 (Invoke-ASCmd / SqlServer PowerShell module).
+ *
+ * Design decision + rationale: docs/design_notes.md Section 15c/15f. This replaces
+ * executeQueries as the primary query mechanism once XMLA_ENABLED/USE_XMLA is turned on,
+ * to avoid the same executeQueries+SPN RLS limitation VISA hit in production.
+ *
+ * Auth: uses the SP's own ClientId/ClientSecret/TenantId directly (the documented
+ * `User ID=app:<ClientId>@<TenantId>` MSOLAP connection-string pattern) — confirmed
+ * working 2026-07-22 against the live model, unlike passing a pre-acquired bearer
+ * token as Password (which failed with "Authentication failed for all authenticators").
+ * This is a different tenant permission gate than the one that blocks SP
+ * client-credentials for executeQueries, so it's viable here.
+ *
+ * RLS enforcement: since effectiveUserName here is a synthetic test UPN (not a real
+ * Entra ID account), we cannot use XMLA's EffectiveUserName property. Instead we
+ * resolve the mapped role(s) via rlsTestUsers.resolveRoles() and activate them
+ * through the connection string's `Roles` property.
+ *
+ * @param {{ query: string, effectiveUserName?: string }} params
+ * @returns {Promise<Array<object>>} normalized rows (already clean column names)
+ */
+async function runXmlaQuery({ query, effectiveUserName }) {
+  const xmlaEndpoint = process.env.XMLA_ENDPOINT;
+  const datasetName = process.env.DATASET_NAME || 'Commercial_Spend_Analytics';
+  const clientId = process.env.CLIENT_ID;
+  const clientSecret = process.env.CLIENT_SECRET;
+  const tenantId = process.env.TENANT_ID;
+
+  if (!xmlaEndpoint) throw new Error('XMLA_ENDPOINT not set in .env (required when USE_XMLA=true)');
+  if (!clientId || !clientSecret || !tenantId) {
+    throw new Error('CLIENT_ID/CLIENT_SECRET/TENANT_ID must be set in .env (required when USE_XMLA=true)');
+  }
+
+  const roles = resolveRoles(effectiveUserName);
+
+  const args = [
+    '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+    '-File', XMLA_SCRIPT_PATH,
+    '-XmlaEndpoint', xmlaEndpoint,
+    '-Database', datasetName,
+    '-Query', query,
+    '-ClientId', clientId,
+    '-ClientSecret', clientSecret,
+    '-TenantId', tenantId
+  ];
+  if (roles.length) {
+    args.push('-Roles', roles.join(','));
+  }
+
+  let stdout;
+  try {
+    ({ stdout } = await execFileAsync('pwsh', args, { maxBuffer: 10 * 1024 * 1024 }));
+  } catch (err) {
+    throw new Error(`XMLA query failed: ${err.stderr || err.message}`);
+  }
+
+  const trimmed = stdout.trim();
+  if (!trimmed) return [];
+  const parsed = JSON.parse(trimmed);
+  return Array.isArray(parsed) ? parsed : [parsed];
+}
+
+/**
  * Route a natural-language question to the closest-matching DAX shape.
  * Order matters — more specific patterns are checked before general ones.
  */
@@ -193,18 +266,33 @@ function normalizeRows(rows) {
  * Execute a DAX query against the Fabric semantic model via the Power BI REST API.
  * Uses the service principal (CLIENT_ID/CLIENT_SECRET) which has Admin access to the workspace.
  *
- * @param {{ question: string, context?: object, daxQuery?: string }} params
+ * @param {{ question: string, context?: object, daxQuery?: string, effectiveUserName?: string }} params
  * @returns {Promise<string>} query results as formatted text for the Foundry agent to interpret
  */
-export async function queryFabricAgent({ question, context, daxQuery }) {
-  const accessToken = await getPowerBIToken();
-  const groupId   = process.env.WORKSPACE_ID;
-  const datasetId = process.env.DATASET_ID;
+export async function queryFabricAgent({ question, context, daxQuery, effectiveUserName }) {
   const query = daxQuery ?? pickDax(question);
-
   const contextNote = context
     ? Object.entries(context).map(([k, v]) => `${k}=${v}`).join(', ')
     : null;
+
+  // Migration flag (docs/design_notes.md Section 15c) — XMLA is the target primary
+  // path once RLS is validated; defaults to the existing executeQueries REST path
+  // until the functional RLS test matrix (Section 15d) has passed.
+  if (process.env.USE_XMLA === 'true') {
+    const rows = await runXmlaQuery({ query, effectiveUserName });
+    if (!rows.length) return JSON.stringify({ error: 'No data returned from semantic model.', question });
+    return JSON.stringify({
+      source: 'Power BI semantic model (XMLA)',
+      question,
+      filters: contextNote || null,
+      effectiveUserName: effectiveUserName || null,
+      rows
+    });
+  }
+
+  const accessToken = await getPowerBIToken();
+  const groupId   = process.env.WORKSPACE_ID;
+  const datasetId = process.env.DATASET_ID;
 
   const url = `https://api.powerbi.com/v1.0/myorg/groups/${groupId}/datasets/${datasetId}/executeQueries`;
 

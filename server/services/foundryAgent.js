@@ -91,7 +91,7 @@ function getClient() {
  * Dispatch a Foundry Agent tool call to the appropriate backend service.
  * Currently handles: query_semantic_model → fabricAgent.js
  */
-async function dispatchToolCall(toolCall, fallbackQuestion) {
+async function dispatchToolCall(toolCall, fallbackQuestion, effectiveUserName) {
   if (toolCall.function?.name !== 'query_semantic_model') {
     return `Tool '${toolCall.function?.name}' is not implemented.`;
   }
@@ -107,7 +107,8 @@ async function dispatchToolCall(toolCall, fallbackQuestion) {
     return await queryFabricAgent({
       question: args.question ?? fallbackQuestion,
       context: args.context ?? null,
-      daxQuery: args.daxQuery ?? null
+      daxQuery: args.daxQuery ?? null,
+      effectiveUserName
     });
   } catch (err) {
     return `Fabric Data Agent error: ${err.message}`;
@@ -120,10 +121,10 @@ async function dispatchToolCall(toolCall, fallbackQuestion) {
  *
  * Requires FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_AGENT_ID in .env (Sprint 4).
  *
- * @param {{ userTurn: string, conversationId?: string }} params
+ * @param {{ userTurn: string, conversationId?: string, effectiveUserName?: string }} params
  * @returns {Promise<string>} agent response text
  */
-export async function sendToFoundryAgent({ userTurn, conversationId }) {
+export async function sendToFoundryAgent({ userTurn, conversationId, effectiveUserName }) {
   if (!process.env.FOUNDRY_AGENT_ID) {
     throw new Error('FOUNDRY_AGENT_ID not set in .env (Sprint 4)');
   }
@@ -165,7 +166,7 @@ export async function sendToFoundryAgent({ userTurn, conversationId }) {
 
       const toolOutputs = await Promise.all(
         toolCalls.map(async (tc) => {
-          const output = await dispatchToolCall(tc, userTurn);
+          const output = await dispatchToolCall(tc, userTurn, effectiveUserName);
           console.log(`[foundryAgent] tool ${tc.function?.name} → output[:80]: ${output.slice(0,80)}`);
           return { toolCallId: tc.id, output };
         })
