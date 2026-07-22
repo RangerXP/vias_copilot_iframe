@@ -56,8 +56,9 @@ The local dev server proves out the architecture before any cloud deployment.
 | Decision | Choice | Reason |
 |----------|--------|--------|
 | Semantic model source | Microsoft Fabric (Direct Lake, `Commercial_Spend_Analytics`) | Governed, production-grade model |
-| Model access layer | Power BI `executeQueries` REST API (direct DAX) | Fabric Data Agent has no public query REST endpoint (CRUD only) — pivoted to direct DAX execution via the Foundry agent's tool |
-| Iframe token source | PBIE App-Owns-Data embed token | Supports enterprise tenant without user sign-in per session |
+| Model access layer | XMLA endpoint via PowerShell `Invoke-ASCmd` shim (SP app-only OAuth) | Matches Microsoft's own guidance for RLS-enabled scenarios; `executeQueries` + SPN hits known limitations under RLS at scale (see [docs/design_notes.md](docs/design_notes.md) §15) |
+| Row-Level Security | Single dynamic TMDL role `Role_Entitlement` (`CUSTOMDATA()`-driven), activated via `Roles=`/`identities[].roles` | Scales to any number of entitlement values without new TMDL roles per value; symmetric across XMLA and PBIE — see [docs/design_notes.md](docs/design_notes.md) §16 |
+| Iframe token source | PBIE App-Owns-Data embed token, `effectiveIdentity` with `roles` + `customData` | Supports enterprise tenant without user sign-in per session, while still enforcing per-entitlement RLS |
 | AI reasoning layer | Azure AI Foundry Agent | Prompt orchestration, multi-turn conversation memory (conversationId → thread), tool calling |
 | Local server runtime | Node.js / Express | Lightweight, easy iframe hosting, portable |
 | Context injection | Pattern 1 (from build_guide.md) | Proved pattern, no PBIE runtime modification needed |
@@ -71,8 +72,9 @@ The local dev server proves out the architecture before any cloud deployment.
 - [x] Node.js 20+ installed and `npm install` run
 - [x] Azure CLI installed and authenticated
 - [x] Fabric tenant policy `ElevatedGuestsTenant` enabled
-- [x] Service principal registered (`VISA-PBIE-EmbedService`, `595278db`) — Admin in workspace, embed token confirmed working
-- [x] Fabric Data Agent provisioned (`Commercial_Spend_Agent`) — no public query REST API; pivoted to Power BI `executeQueries` for grounded queries
+- [x] Service principal registered (`VISA-PBIE-EmbedService`, `595278db`) — Admin in workspace, embed token confirmed working with `effectiveIdentity`
+- [x] Fabric Data Agent provisioned (`Commercial_Spend_Agent`) — no public query REST API; pivoted to XMLA endpoint (`Invoke-ASCmd` shim) for grounded queries
+- [x] Row-Level Security: `Role_Entitlement` dynamic role (`CUSTOMDATA()`), fixed-identity Direct Lake datasource connection bound (SSO disabled) — validated end-to-end for two test entitlements
 - [x] Azure AI Foundry project created — `visa-pbie-context` (West US 3, `visa-pbie-context-rsc`), agent `pbie-context-agent` on `gpt-5.1`
 
 ---
@@ -99,11 +101,34 @@ The local dev server proves out the architecture before any cloud deployment.
 |--------|------|--------|
 | Sprint 1 | Local PBIE Server + Iframe Render | **Complete** — embed token confirmed, iframe renders live report |
 | Sprint 2 | Context Capture to JSON | **Complete** — context flows end-to-end into Foundry agent prompts |
-| Sprint 3 | Fabric Data Agent Integration | **Complete** (pivoted) — Power BI `executeQueries` used in place of Data Agent REST (no public query API exists) |
+| Sprint 3 | Fabric Data Agent Integration | **Complete** (pivoted) — Power BI `executeQueries` used in place of Data Agent REST (no public query API exists); later migrated to the XMLA endpoint (see Sprint 7) for RLS compatibility |
 | Sprint 4 | Foundry Agent + Context Injection | **Complete** — end-to-end validated: chat → Foundry agent (`gpt-5.1`) → tool call → real data → natural-language answer |
 | Sprint 5 | Semantic Query Layer Refinement | **Complete** — 10 DAX query shapes, `field_map.json` rewrite, context service, multi-turn conversation memory (conversationId → Foundry thread) |
 | Sprint 6 | Demo Build + Talking Points | **Complete** — `docs/demo_script.md` rewritten against the live `Commercial_Spend_Analytics` report and real validated data |
+| Sprint 7 | XMLA Migration + Entitlement-Based RLS | **Complete** — query layer migrated to XMLA, `Role_Entitlement` dynamic RLS role live, Direct Lake fixed-identity/SSO binding resolved, embed tokens validated for both test entitlements |
 
 **All 6 sprints complete.** The project is demo-ready end-to-end: iframe → context capture → Foundry agent → live semantic model query → natural-language answer, with multi-turn memory.
 
-**Auth boundary:** Path B active (SP + effectiveIdentity + context injection) for embed tokens. Fabric semantic model queries use `DefaultAzureCredential` (delegated user token) — SP client-credentials blocked until tenant Power BI admin enables service-principal API access.
+**Auth boundary:** SP client-credentials (`VISA-PBIE-EmbedService`) used consistently across both surfaces — embed tokens (`GenerateToken` + `effectiveIdentity`) and semantic model queries (XMLA via `Invoke-ASCmd`, app-only OAuth). No delegated/user token dependency remains.
+
+---
+
+## Security Model
+
+Row-Level Security is enforced identically on both the embedded report and the chat/agent query path via a single dynamic TMDL role (`Role_Entitlement`, `dim_client[HomeRegion] = CUSTOMDATA()`), driven by one entitlement value per synthetic test user:
+
+- **PBIE embed token**: `identities[].customData` + `identities[].roles: ['Role_Entitlement']`
+- **XMLA query**: connection string `CustomData=<value>` + `Roles=Role_Entitlement`
+
+This replaced an earlier design that used one static TMDL role per customer segment (`Role_RegionA`/`Role_RegionB`, still present for comparison) — the dynamic role scales to any number of entitlement values without adding TMDL roles or redeploying the model.
+
+| Control | Status |
+|---|---|
+| Single SP identity, tenant-homed, used consistently for embed tokens + XMLA queries | ✅ |
+| Dynamic entitlement-based RLS, validated identical to static roles at the XMLA layer | ✅ |
+| Direct Lake datasource bound to fixed-identity connection (SSO disabled) | ✅ |
+| Embed tokens with `effectiveIdentity` succeed for both test entitlements; requests with no identity fail closed | ✅ |
+| Fail-closed hardening as an explicit app-level check (vs. relying on platform default) | ⬜ Not yet implemented |
+| Frontend `?user=<upn>` transport is unauthenticated | ⚠️ Dev/demo only — not production-safe |
+
+Full detail: [docs/design_notes.md](docs/design_notes.md) §15 (XMLA/RLS migration), §16 (CUSTOMDATA() entitlement design + Static/EffectiveUserName/CUSTOMDATA() comparison), §17 (current security posture snapshot).

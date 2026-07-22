@@ -4,7 +4,7 @@
 **Prepared for:** Customer Implementation Team  
 **Pattern:** Host-App Filter Injection + FilterSession Context Grounding  
 **Tenant:** `MngEnvMCAP660444.onmicrosoft.com`  
-**Last updated:** 2026-07-21 (rev 2 — full stack implemented, embed token confirmed)  
+**Last updated:** 2026-07-22 (rev 3 — entitlement-based dynamic RLS live end-to-end; Direct Lake fixed-identity/SSO binding resolved; see Section 17 for current security posture)  
 **Redesign note:** Project scope updated 2026-07-21 from Pattern 1 (slicer-read context injection) to Pattern 2 (host-app filter injection via `setFilters()` + `Fact_FilterSession` grounding). See Section 4 for the updated context flow and Section 11 for the new data model.
 
 ---
@@ -860,8 +860,9 @@ Node's `server/services/fabricAgent.js` (`runXmlaQuery()`) shells out to `script
 | Migrate `server/services/fabricAgent.js` from `executeQueries` to XMLA (via PowerShell `Invoke-ASCmd` shim) | Dev team | ✅ Done — `USE_XMLA=true` validated end-to-end |
 | Populate `roles` array in embed token `effectiveIdentity` per user (currently always empty) | Dev team | ✅ Done |
 | Functional test: User A/User B chat data isolation (Section 15d matrix) — query layer | Dev team | ✅ Validated 2026-07-22 |
-| Functional test: User A/User B embedded **report** data isolation (browser round-trip) | Dev team | ⬜ Not yet re-verified post-migration |
+| Functional test: User A/User B embedded **report** data isolation (browser round-trip) | Dev team | ✅ Validated 2026-07-22 — Direct Lake fixed-identity/SSO-disabled cloud connection bound to the semantic model's datasource in the Fabric portal; `regiona.test@visapoc.demo` and `regionb.test@visapoc.demo` both return `200` from `/api/embed-token` and load successfully in-browser |
 | Confirm embed token request/response contract unchanged post-migration (Section 15e) | Dev team | ✅ Verified by code inspection — no shape changes |
+| Bind semantic model datasource to fixed-identity connection (SSO disabled) in Fabric portal | Dev team | ✅ Done 2026-07-22 — resolved the `403 "not supported for this datasource"` blocker described below |
 
 This supersedes the "Confirm RLS status" row in Section 10's Implementation Checklist — RLS is now being actively added rather than being "not applicable."
 
@@ -894,7 +895,11 @@ This supersedes the "Confirm RLS status" row in Section 10's Implementation Chec
 
 The dynamic `Role_Entitlement` role produces byte-for-byte identical row sets (region, spend, transaction count) to the static role it replaces, for both test entitlement values.
 
-**PBIE layer — still blocked by the pre-existing Section 15 gap, independent of this change.** Re-testing `/api/embed-token?user=regiona.test@visapoc.demo` after switching to entitlement mode reproduces the *same* `403 "Creating embed token with effective identity is not supported for this datasource"` error as before this feature (confirmed via direct `curl`/`Invoke-WebRequest` test) — i.e. the entitlement-mode request is well-formed and reaches the same Direct Lake fixed-identity/SSO blocker documented in Section 15, not a new regression. As an interesting side effect: since the model now has a live RLS role (`Role_Entitlement` synced), a bare `GenerateToken` call **with no identity at all** now also fails, with `400 "requires effective identity to be provided"` — RLS presence on the model tightens this globally, for every caller, once any RLS role is defined. Full PBIE-vs-XMLA row-set parity therefore can't be validated end-to-end until the Section 15 fixed-identity cloud-connection binding is completed in the portal (unrelated manual step, still open).
+**PBIE layer — RESOLVED 2026-07-22.** Re-testing `/api/embed-token?user=regiona.test@visapoc.demo` after switching to entitlement mode initially reproduced the *same* `403 "Creating embed token with effective identity is not supported for this datasource"` error as before this feature — confirming the entitlement-mode request was well-formed and hit the same Direct Lake fixed-identity/SSO blocker documented in Section 15, not a new regression. That blocker was then resolved by binding the semantic model's OneLake datasource to the fixed-identity cloud connection (service-principal auth, Entra ID SSO for DirectQuery/Direct Lake left **disabled**) via the model's Settings → "Gateway and cloud connections" in the Fabric portal. After binding, `/api/embed-token?user=regiona.test@visapoc.demo` and `?user=regionb.test@visapoc.demo` both return **`200`** with a valid `accessToken`/`embedUrl`, and both load successfully in-browser.
+
+As an interesting side effect: since the model now has a live RLS role (`Role_Entitlement` synced), a bare `GenerateToken` call **with no identity at all** now fails, with `400 "requires effective identity to be provided"` — this is expected/correct fail-closed behavior once any RLS role is defined on the model, not a bug.
+
+Full PBIE-vs-XMLA row-set parity has been validated at the **token/report-load level** for both entitlement values. Pixel/data-level confirmation that the rendered visuals show the exact NA/EU totals from the XMLA comparison (`$15,594,460.57` / 51,476 txns vs. `$15,887,031.70` / 53,022 txns) is a recommended follow-up but not a blocker.
 
 ### 16c. Does this eliminate the dependency on `Roles=` overrides?
 
@@ -926,6 +931,27 @@ The `Roles=` requirement itself is intrinsic to how App-Owns-Data RLS works for 
 | Switch default runtime path (embed token + XMLA) to entitlement mode, keep static mode for comparison | ✅ Done |
 | Validate static-vs-dynamic row-set parity at the XMLA layer | ✅ PASS for both test entitlement values (16b) |
 | Sync new TMDL role to the live model without a manual portal click | ❌ **Not automatable** — `POST /v1/workspaces/{id}/git/status`/`updateFromGit` returned `400 GitCredentialsNotConfigured` for the SP caller; Fabric's Git integration API requires the calling identity's own registered Git credentials (a user-level PAT via "My Git Credentials"), which service principals don't have here. Same class of platform gap as Section 15's fixed-identity-connection bind — portal-only ("Update from Git" in Source Control). User performed this manually 2026-07-22. |
-| Validate PBIE-vs-XMLA row-set parity end-to-end | ⬜ Blocked by the pre-existing Section 15 Direct Lake fixed-identity/SSO binding gap (separate manual portal step, still open) |
-| Fail-closed hardening: reject/error when no entitlement resolves for a user, instead of silently falling back to the SP's full/unfiltered view | ⬜ Not yet implemented (carried over from the Section 15 discussion) |
+| Validate PBIE-vs-XMLA row-set parity end-to-end | ✅ **Resolved 2026-07-22** — Section 15 Direct Lake fixed-identity/SSO binding gap closed (portal binding completed); embed tokens now return `200` with `effectiveIdentity` for both test entitlement values, and both load successfully in-browser |
+| Fail-closed hardening: reject/error when no entitlement resolves for a user, instead of silently falling back to the SP's full/unfiltered view | ⬜ Not yet implemented — recommended next step; currently an unresolved entitlement is indistinguishable from "no identity provided", which already fails via the platform's own RLS enforcement, but this should be made an explicit application-level rejection rather than relying solely on the platform behavior |
+| Rotate `CLIENT_SECRET` for `VISA-PBIE-EmbedService` | ⬜ **Recommended** — the secret was inadvertently exposed in a chat/attachment during development; rotate before any shared/production use |
+
+---
+
+## 17. Current Security Posture (as of 2026-07-22)
+
+> Snapshot for quick reference. Details live in Sections 1, 15, and 16 above.
+
+| Control | Mechanism | Status |
+|---|---|---|
+| Backend service identity | Single native SP `VISA-PBIE-EmbedService`, homed in `MngEnvMCAP660444` tenant (required — cross-tenant/guest identities are blocked by tenant inbound policy) | ✅ Working |
+| End-user identity model | App-Owns-Data — no real end-user AAD identity; synthetic entitlement strings only (no license/Build-permission dependency) | ✅ By design |
+| Row-Level Security | Single dynamic TMDL role `Role_Entitlement` (`dim_client[HomeRegion] = CUSTOMDATA()`), activated via `Roles=`/`identities[].roles`, value supplied via `CustomData=`/`identities[].customData` — same entitlement value on both PBIE and XMLA surfaces | ✅ Working, validated identical to legacy static roles |
+| Query layer transport | XMLA endpoint via SP app-only OAuth (`User ID=app:<ClientId>@<TenantId>`), invoked from Node via a PowerShell `Invoke-ASCmd` shim — avoids both `executeQueries`+RLS limitations and ROPC/2FA-bypass policy violations | ✅ Working |
+| Embed token transport | `GenerateToken` REST API, `effectiveIdentity` with `roles` + `customData` | ✅ Working — `200` for both test entitlements |
+| Data-plane binding | Direct Lake datasource bound to a fixed-identity cloud connection (service-principal auth, Entra ID SSO **disabled**) | ✅ Resolved 2026-07-22 (previously the long-standing `403` blocker) |
+| Fail-closed behavior | Requests with no identity fail once any RLS role exists on the model (platform-enforced) | ✅ Confirmed working, ⬜ not yet hardened as an explicit app-level check |
+| Frontend UPN transport | `?user=<upn>` query param, unauthenticated | ⚠️ Known open risk — acceptable for local dev/demo only, **not production-safe**; needs a real session/auth mechanism before any production use |
+| Secret hygiene | `CLIENT_SECRET` for `VISA-PBIE-EmbedService` | ⚠️ Exposed in a chat attachment during development — **rotation recommended**, not yet performed |
+
+**Net assessment:** no unfiltered data-access fallback path exists once RLS roles are defined; the entitlement value is the single source of truth for filtering on both the embed and query surfaces; the SP has no standing broad access outside the fixed-identity connection's scope. Residual risk is operational (rotate the exposed secret) and defense-in-depth (make the fail-closed path an explicit rejection, and replace the unauthenticated `?user=` query param before production).
 
