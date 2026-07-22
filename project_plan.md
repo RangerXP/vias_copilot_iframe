@@ -178,7 +178,39 @@ Do not answer from memory. Always query the model for data values.
 
 **Validation:**
 > Full demo script walked through against the live server + Foundry agent 2026-07-21/22 — every scripted question returns a grounded, accurate answer from the real semantic model. No fictional data (e.g. Costco/Target merchants, "Customer Risk" page) remains in the script.
-> **STATUS: PASSED — Sprint 6 complete. All 6 sprints in the roadmap are now done.**
+> **STATUS: PASSED — Sprint 6 complete.**
+
+---
+
+## Sprint 7 — XMLA Migration + Entitlement-Based RLS
+
+**Goal:** Move the query layer off the `executeQueries` REST API (which has known limitations under RLS at scale) onto the XMLA endpoint, and replace static per-segment RLS roles with a single dynamic, entitlement-based role that scales without per-value TMDL changes.
+
+**Deliverables:**
+- [x] Query layer migrated to XMLA via a `Invoke-ASCmd` PowerShell shim, SP app-only OAuth (`scripts/query_xmla.ps1`)
+- [x] Dynamic TMDL role `Role_Entitlement` (`dim_client[HomeRegion] = CUSTOMDATA()`) replacing static `Role_RegionA`/`Role_RegionB` as the default runtime path (static roles kept for comparison)
+- [x] Direct Lake datasource bound to a fixed-identity cloud connection (service-principal auth, Entra ID SSO disabled) — resolved the long-standing `403 not supported for this datasource` blocker
+- [x] Embed tokens + XMLA queries validated end-to-end for both test entitlement values, byte-identical row sets vs. legacy static roles
+
+**Validation:**
+> `scripts/compare_rls_mechanisms.ps1` — static vs. dynamic RLS parity PASS for both regions; browser round-trip confirmed both test users load the embedded report successfully.
+> **STATUS: PASSED — Sprint 7 complete.**
+
+---
+
+## Sprint 8 — Data Correctness (`Spend YoY %` Fix) + Credential Hygiene
+
+**Goal:** Fix a reported data bug in the `Spend YoY %` headline KPI cards, and resolve credential issues surfaced along the way.
+
+**Deliverables:**
+- [x] Root-caused the `Spend YoY %` bug via direct XMLA `EVALUATE` queries: `DATEADD`/`SAMEPERIODLASTYEAR` return blank when filter context comes from `dim_date[Year]` rather than `dim_date[Date]` — not fixed by marking the table as a Date Table (tested and ruled out empirically)
+- [x] Replaced the measure with explicit Year-arithmetic filtering (no time-intelligence functions), validated correct in every context (unfiltered, Year-filtered, Date-filtered) via XMLA before and after syncing to the live model
+- [x] Rotated `CLIENT_SECRET` for `VISA-PBIE-EmbedService` after repeated chat exposure; discovered and fixed two independent stale Fabric/Power BI credential stores for the OneLake datasource (one SP-patchable via the Fabric Connections API, one requiring a manual portal credential edit)
+- [x] README and `docs/design_notes.md` (§18) updated with root cause, fix, and validation evidence
+
+**Validation:**
+> Post-sync XMLA check: per-year `Spend YoY %` populated correctly (2025 = +2.4%, 2026 = -1.9%, 2024 = blank/no prior year); unfiltered KPI-card value (-1.9%) matches the latest-year row exactly. Confirmed visually by the user in the live report.
+> **STATUS: PASSED — Sprint 8 complete. All 8 sprints in the roadmap are now done.**
 
 ---
 

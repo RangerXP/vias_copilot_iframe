@@ -106,8 +106,9 @@ The local dev server proves out the architecture before any cloud deployment.
 | Sprint 5 | Semantic Query Layer Refinement | **Complete** — 10 DAX query shapes, `field_map.json` rewrite, context service, multi-turn conversation memory (conversationId → Foundry thread) |
 | Sprint 6 | Demo Build + Talking Points | **Complete** — `docs/demo_script.md` rewritten against the live `Commercial_Spend_Analytics` report and real validated data |
 | Sprint 7 | XMLA Migration + Entitlement-Based RLS | **Complete** — query layer migrated to XMLA, `Role_Entitlement` dynamic RLS role live, Direct Lake fixed-identity/SSO binding resolved, embed tokens validated for both test entitlements |
+| Sprint 8 | Data Correctness — `Spend YoY %` Fix + Credential Hygiene | **Complete** — diagnosed and fixed a `Spend YoY %` KPI bug (blank/incorrect year-over-year values) via empirical XMLA testing; rotated the SP client secret and resolved two separate stale Fabric/Power BI credential stores uncovered in the process. See [docs/design_notes.md](docs/design_notes.md) §18 |
 
-**All 6 sprints complete.** The project is demo-ready end-to-end: iframe → context capture → Foundry agent → live semantic model query → natural-language answer, with multi-turn memory.
+**All 8 sprints complete.** The project is demo-ready end-to-end: iframe → context capture → Foundry agent → live semantic model query → natural-language answer, with multi-turn memory, and the headline KPI cards now show validated, correct year-over-year figures.
 
 **Auth boundary:** SP client-credentials (`VISA-PBIE-EmbedService`) used consistently across both surfaces — embed tokens (`GenerateToken` + `effectiveIdentity`) and semantic model queries (XMLA via `Invoke-ASCmd`, app-only OAuth). No delegated/user token dependency remains.
 
