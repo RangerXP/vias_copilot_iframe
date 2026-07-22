@@ -1,10 +1,14 @@
 import express from 'express';
 import { normalizeContext, buildContextBlock } from '../services/contextService.js';
 import { sendToFoundryAgent } from '../services/foundryAgent.js';
+import { queryFabricAgent } from '../services/fabricAgent.js';
 
 const router = express.Router();
 
 router.post('/', async (req, res) => {
+  // Evaluate at request-time — dotenv.config() runs after ESM imports are hoisted,
+  // so top-level module constants would see undefined env vars.
+  const USE_FOUNDRY = Boolean(process.env.FOUNDRY_AGENT_ID && process.env.FOUNDRY_PROJECT_ENDPOINT);
   try {
     const { question, rawContext } = req.body;
 
@@ -15,11 +19,17 @@ router.post('/', async (req, res) => {
     const businessContext = rawContext ? normalizeContext(rawContext) : null;
     const contextBlock = businessContext ? buildContextBlock(businessContext) : '';
 
-    const userTurn = contextBlock
-      ? `[Report Context]\n${contextBlock}\n\n[User Question]\n${question}`
-      : question;
+    let answer;
+    if (USE_FOUNDRY) {
+      const userTurn = contextBlock
+        ? `[Report Context]\n${contextBlock}\n\n[User Question]\n${question}`
+        : question;
+      answer = await sendToFoundryAgent({ userTurn });
+    } else {
+      // Direct Fabric Data Agent path (used when FOUNDRY_AGENT_ID is not configured)
+      answer = await queryFabricAgent({ question, context: businessContext });
+    }
 
-    const answer = await sendToFoundryAgent({ userTurn });
     res.json({ answer });
   } catch (err) {
     console.error('[chat]', err.message);
