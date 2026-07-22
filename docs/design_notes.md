@@ -864,3 +864,68 @@ Node's `server/services/fabricAgent.js` (`runXmlaQuery()`) shells out to `script
 | Confirm embed token request/response contract unchanged post-migration (Section 15e) | Dev team | ✅ Verified by code inspection — no shape changes |
 
 This supersedes the "Confirm RLS status" row in Section 10's Implementation Checklist — RLS is now being actively added rather than being "not applicable."
+
+## 16. Entitlement-Based Dynamic RLS via CUSTOMDATA() (prototype, added 2026-07-22)
+
+> Follow-up to Section 15's XMLA/RLS migration and the architectural question of whether XMLA and PBIE can carry the "same identity object". This section prototypes replacing one-static-role-per-value RLS with a single dynamic role driven by `CUSTOMDATA()`/`customData`, so both surfaces enforce RLS from the same entitlement string.
+
+### 16a. Design
+
+- **New TMDL role `Role_Entitlement`**: `dim_client[HomeRegion] = CUSTOMDATA()` — one dynamic role instead of one static role per entitlement value. `Role_RegionA`/`Role_RegionB` are kept in the model, but are no longer used by the default runtime path — they exist only so `scripts/compare_rls_mechanisms.ps1` can prove the new mechanism is equivalent.
+- The entitlement **value** (not a role name) is carried identically on both surfaces:
+  - **PBIE**: `GenerateToken` `identities[].customData`, with `identities[].roles: ['Role_Entitlement']` to activate the dynamic role.
+  - **XMLA**: connection string `CustomData=<value>` alongside `Roles=Role_Entitlement`.
+- `server/services/rlsTestUsers.js`: `TEST_USER_ENTITLEMENTS` maps each synthetic UPN to an entitlement value (`regiona.test@visapoc.demo` → `"North America"`, `regionb.test@visapoc.demo` → `"Europe"`) via `resolveEntitlement()`. The old `TEST_USER_ROLES`/`resolveRoles()` mapping is retained, comparison-only.
+- `server/routes/embedToken.js` defaults to entitlement mode; `?mode=static` reverts to the legacy static-role mapping for side-by-side testing; `?customData=` overrides the resolved value for ad-hoc testing.
+- `server/services/fabricAgent.js` `runXmlaQuery()` defaults to `Roles=Role_Entitlement` + `CustomData=<entitlement>`; an `rlsMode: 'static'` param falls back to the legacy per-value `Roles=` mapping.
+- `scripts/query_xmla.ps1` gained a `-CustomData` param, appended as `CustomData=<value>` in the MSOLAP connection string (property name confirmed exact — no space — via the MS Learn `connection-string-properties-analysis-services` reference).
+
+### 16b. Validation — XMLA layer (static vs. dynamic row-set parity)
+
+`scripts/compare_rls_mechanisms.ps1` runs the same DAX query 5 ways and diffs row sets. **Result (2026-07-22, post Fabric Git sync): both PASS.**
+
+| Query | Roles= | CustomData= | Result |
+|---|---|---|---|
+| Baseline | *(none)* | *(none)* | 5 regions returned (unfiltered) |
+| Static Role_RegionA | `Role_RegionA` | — | `North America` only |
+| Dynamic entitlement | `Role_Entitlement` | `North America` | `North America` only — **identical to static Role_RegionA** ✅ |
+| Static Role_RegionB | `Role_RegionB` | — | `Europe` only |
+| Dynamic entitlement | `Role_Entitlement` | `Europe` | `Europe` only — **identical to static Role_RegionB** ✅ |
+
+The dynamic `Role_Entitlement` role produces byte-for-byte identical row sets (region, spend, transaction count) to the static role it replaces, for both test entitlement values.
+
+**PBIE layer — still blocked by the pre-existing Section 15 gap, independent of this change.** Re-testing `/api/embed-token?user=regiona.test@visapoc.demo` after switching to entitlement mode reproduces the *same* `403 "Creating embed token with effective identity is not supported for this datasource"` error as before this feature (confirmed via direct `curl`/`Invoke-WebRequest` test) — i.e. the entitlement-mode request is well-formed and reaches the same Direct Lake fixed-identity/SSO blocker documented in Section 15, not a new regression. As an interesting side effect: since the model now has a live RLS role (`Role_Entitlement` synced), a bare `GenerateToken` call **with no identity at all** now also fails, with `400 "requires effective identity to be provided"` — RLS presence on the model tightens this globally, for every caller, once any RLS role is defined. Full PBIE-vs-XMLA row-set parity therefore can't be validated end-to-end until the Section 15 fixed-identity cloud-connection binding is completed in the portal (unrelated manual step, still open).
+
+### 16c. Does this eliminate the dependency on `Roles=` overrides?
+
+**Partially — not entirely.** `Roles=`/`identities[].roles` is still required to *activate* which TMDL role applies to the connection; `CustomData`/`customData` only supplies the *filter value* that role's DAX expression reads. What's eliminated is needing **one role per entitlement value** — a single dynamic role now serves any number of entitlement values, so scaling from 2 test regions to N real customer entitlements no longer means adding a TMDL role (and redeploying the model) per new value.
+
+The `Roles=` requirement itself is intrinsic to how App-Owns-Data RLS works for **non-member** identities (synthetic test users, or real external/guest customers who aren't members of the workspace's own security groups): the connecting SP must always explicitly state which role a request should be evaluated under, whether that role's filter is static or CUSTOMDATA()-driven. This isn't a workaround — it mirrors how `GenerateToken`'s `identities[].roles` has always worked; the improvement here is purely in the TMDL role count, not in removing the activation mechanism.
+
+### 16d. Comparison — Static Roles vs. EffectiveUserName vs. CUSTOMDATA() for external-customer App-Owns-Data
+
+| Dimension | Static Roles (`Role_RegionA`/`B`) | `EffectiveUserName` | `CUSTOMDATA()` / entitlement |
+|---|---|---|---|
+| TMDL roles needed | 1 per distinct entitlement value — doesn't scale | 0 (relies on real AAD role/group membership) | 1 total, regardless of value count |
+| Requires a real Microsoft Entra ID account? | No | **Yes** — Read+Build permission, caller must be workspace admin | No |
+| Usable for external/non-AAD customers (App-Owns-Data)? | Yes | **No** | Yes |
+| PBIE mechanism | `effectiveIdentity.roles` | `effectiveIdentity.username` (PBIE itself never validates this against AAD — only XMLA's `EffectiveUserName` does) | `effectiveIdentity.customData` |
+| XMLA mechanism | `Roles=<name>` | `EffectiveUserName=<upn>` | `CustomData=<value>` + `Roles=<dynamic role>` |
+| Symmetric across XMLA + PBIE for synthetic/external identities? | Yes (both just select a role name) | **No** — asymmetric; XMLA requires a real AAD identity, PBIE doesn't validate at all | **Yes** — pure pass-through string, zero identity validation on either surface |
+| Scales to N customer entitlement values | Poorly — new TMDL role + model redeploy per value | N/A — depends on real AAD group provisioning, not TMDL roles | Well — one role, unlimited values from any backing store (DB, claims, JWT, etc.) |
+| Production hardening risk | SP silently bypasses RLS (full Admin view) if no role resolved for a user | Not usable at all for true external customers | Same SP-bypass risk as static Roles — must still fail closed if entitlement unresolved |
+| Best fit | Small, fixed number of coarse segments known at model-design time | Internal/enterprise users who are real, licensed tenant members | External-customer, App-Owns-Data, many or dynamic entitlement values — matches VISA's production shape |
+
+**Recommendation**: for external-customer App-Owns-Data architectures like this POC and VISA's production pattern, `CUSTOMDATA()`-based entitlement RLS is the better long-term mechanism — it scales to arbitrary entitlement counts without per-value TMDL changes, and it's the only mechanism proven symmetric across XMLA and PBIE for non-AAD synthetic/external identities. `EffectiveUserName` is not viable for this architecture class at all: it requires real, licensed AAD identities with Build permission, which directly contradicts the App-Owns-Data premise of embedding for users who are external to (or unknown to) the host tenant.
+
+### 16e. Open items
+
+| Item | Status |
+|------|--------|
+| Define `Role_Entitlement` dynamic TMDL role | ✅ Done, synced to live model 2026-07-22 |
+| Switch default runtime path (embed token + XMLA) to entitlement mode, keep static mode for comparison | ✅ Done |
+| Validate static-vs-dynamic row-set parity at the XMLA layer | ✅ PASS for both test entitlement values (16b) |
+| Sync new TMDL role to the live model without a manual portal click | ❌ **Not automatable** — `POST /v1/workspaces/{id}/git/status`/`updateFromGit` returned `400 GitCredentialsNotConfigured` for the SP caller; Fabric's Git integration API requires the calling identity's own registered Git credentials (a user-level PAT via "My Git Credentials"), which service principals don't have here. Same class of platform gap as Section 15's fixed-identity-connection bind — portal-only ("Update from Git" in Source Control). User performed this manually 2026-07-22. |
+| Validate PBIE-vs-XMLA row-set parity end-to-end | ⬜ Blocked by the pre-existing Section 15 Direct Lake fixed-identity/SSO binding gap (separate manual portal step, still open) |
+| Fail-closed hardening: reject/error when no entitlement resolves for a user, instead of silently falling back to the SP's full/unfiltered view | ⬜ Not yet implemented (carried over from the Section 15 discussion) |
+
