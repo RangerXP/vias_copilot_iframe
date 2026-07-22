@@ -153,5 +153,4 @@ See [measures.dax](./measures.dax) for full DAX definitions.
 | Approval Rate | Approved transactions / total transactions |
 | Decline Rate | Declined transactions / total transactions |
 | High Fraud Transactions | Transaction Count where FraudScore >= 70 |
-| Spend YoY % | Year-over-year spend growth percentage |
-| Spend YoY % (Latest Year) | Spend YoY % self-scoped to the most recent year — used by headline KPI cards with no year filter |
+| Spend YoY % | Year-over-year spend growth percentage — self-scoping via explicit Year-arithmetic filtering (see `docs/design_notes.md` Section 18), correct whether unfiltered (latest vs. prior year) or filtered/grouped by year |

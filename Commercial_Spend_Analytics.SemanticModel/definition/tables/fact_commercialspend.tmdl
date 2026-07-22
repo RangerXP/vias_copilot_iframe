@@ -51,22 +51,14 @@ table fact_commercialspend
 		lineageTag: 1b0003b8-99d6-4d3c-9098-90f73c55ac5b
 
 	measure 'Spend YoY %' =
-			DIVIDE(
-			    [Total Spend USD]
-			        - CALCULATE([Total Spend USD], DATEADD(dim_date[Date], -1, YEAR)),
-			    CALCULATE([Total Spend USD], DATEADD(dim_date[Date], -1, YEAR))
-			)
+			VAR CurYear = MAX(dim_date[Year])
+			VAR CurSpend = CALCULATE([Total Spend USD], FILTER(ALL(dim_date), dim_date[Year] = CurYear))
+			VAR PriorSpend = CALCULATE([Total Spend USD], FILTER(ALL(dim_date), dim_date[Year] = CurYear - 1))
+			RETURN
+			    DIVIDE(CurSpend - PriorSpend, PriorSpend)
 		formatString: 0.0%
 		displayFolder: Time Intelligence
 		lineageTag: 4c099ecd-a1bd-4837-bb7f-e7442160ce3d
-
-	measure 'Spend YoY % (Latest Year)' =
-			VAR LatestYear = CALCULATE(MAX(dim_date[Year]), ALL(dim_date))
-			RETURN
-			    CALCULATE([Spend YoY %], dim_date[Year] = LatestYear)
-		formatString: 0.0%
-		displayFolder: Time Intelligence
-		lineageTag: 8d3f6a21-9c47-4e2a-b6f0-1a5c7d9e2b34
 
 	column TransactionId
 		dataType: int64

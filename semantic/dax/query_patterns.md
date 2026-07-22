@@ -25,8 +25,7 @@ first. See the function in `fabricAgent.js` for the exact routing rules.
 | `High Fraud Transactions` | Risk | `#,0` |
 | `Approval Rate` | Approval | `0.0%` |
 | `Decline Rate` | Approval | `0.0%` |
-| `Spend YoY %` | Time Intelligence | `0.0%` — year-over-year vs. same period prior year. Requires filtering by year for a meaningful result (blank at unfiltered grand-total level by design). |
-| `Spend YoY % (Latest Year)` | Time Intelligence | `0.0%` — self-scoped to the most recent year in the model; used by the headline KPI cards so they always show a specific, defensible year-over-year figure. **Fixed 2026-07-22** — see `docs/design_notes.md` Section 18 (root cause: `dim_date` wasn't marked as a Date Table + KPI cards had no year filter). |
+| `Spend YoY %` | Time Intelligence | `0.0%` — year-over-year vs. prior year, using explicit `Year`-arithmetic filtering (`VAR CurYear = MAX(dim_date[Year])`, then `CALCULATE(..., FILTER(ALL(dim_date), dim_date[Year] = CurYear))`/`CurYear - 1`) rather than `DATEADD`/`SAMEPERIODLASTYEAR`. Self-scoping in every context — unfiltered defaults to latest-vs-prior year, and it's also correct per-row when filtered/grouped by `dim_date[Year]`. **Fixed 2026-07-22** — see `docs/design_notes.md` Section 18 (root cause: `DATEADD`/`SAMEPERIODLASTYEAR` return blank when filter context comes from `dim_date[Year]` rather than `dim_date[Date]`; marking `dim_date` as a Date Table did not resolve this — the fix was replacing time-intelligence functions with explicit Year filtering). |
 
 **Dimension tables** (all Direct Lake, joined 1:many from fact table):
 

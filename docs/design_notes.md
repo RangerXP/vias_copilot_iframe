@@ -963,13 +963,26 @@ The `Roles=` requirement itself is intrinsic to how App-Owns-Data RLS works for 
 
 **Root cause — two compounding bugs, both confirmed via direct XMLA DAX queries against the live model:**
 
-1. **`dim_date` was never marked as an official Date Table.** Confirmed via `EVALUATE` queries: filtering `dim_date` by the `Year` column (an integer column — what the per-year trend table visual groups on) caused `DATEADD(dim_date[Date], -1, YEAR)` and `SAMEPERIODLASTYEAR(dim_date[Date])` to both return **BLANK**, even though the exact same prior-year data exists and is reachable when filtering the `Date` column directly instead. This is the documented DAX requirement — time-intelligence functions need the table marked as a Date table for them to reliably resolve a shifted period when filter context arrives via a non-date column of that table. Net effect: every row of the "Spend YoY %" column in the per-year trend table (`v_trnd_tbl`) was silently blank.
+1. **`DATEADD`/`SAMEPERIODLASTYEAR` return BLANK when filter context comes from `dim_date[Year]`** (an integer column — what the per-year trend table visual groups on), even though min/max date in that context correctly resolves to the filtered year, and the exact same prior-year data is reachable when filtering `dim_date[Date]` directly instead. This is a real DAX limitation with these time-intelligence functions and is **not fixed by marking the table as a Date Table** — `dataCategory: Time` was added to `dim_date.tmdl` (good practice regardless, and confirmed live via `INFO.TABLES()`) but the Year-column-filter case was re-tested afterward and still returned blank. Net effect: every row of the "Spend YoY %" column in the per-year trend table (`v_trnd_tbl`) was silently blank.
 2. **The two KPI cards had no year filter at all** (`"filterConfig":{"filters":[]}`), so they evaluated `Spend YoY %` at the grand-total level — across the full 3-year unfiltered date range (2024-01-01 to 2026-12-31) — which DATEADD interprets as "shift the entire multi-year window back one year" rather than "this year vs. last year." That produced a technically-real-but-meaningless ~49.6% figure with no corresponding bar/row in the trend visuals.
 
-**Fix:**
-- `dim_date.tmdl` — added `dataCategory: Time` at the table level (the TOM/TMDL property Power BI Desktop's "Mark as Date Table" persists). `dim_date` already satisfies the underlying requirements: 1,096 rows, 1,096 distinct dates, fully contiguous 2024-01-01 → 2026-12-31 (confirmed via `EVALUATE ROW("MinDate", MIN(...), "MaxDate", MAX(...), "RowCount", COUNTROWS(...), "DistinctDates", DISTINCTCOUNT(...))`).
-- `fact_commercialspend.tmdl` — added a new measure `Spend YoY % (Latest Year)` that self-scopes to the most recent year in the model (`CALCULATE([Spend YoY %], dim_date[Year] = LatestYear)`) so the headline KPI cards always show a specific, defensible year-over-year comparison instead of an unfiltered multi-year figure. The original `Spend YoY %` measure is unchanged and still drives the per-year trend table.
-- Report: `v_trnd02` (Spend Trends page) and `v_exec05` (Executive Summary page) card visuals now reference `Spend YoY % (Latest Year)` instead of `Spend YoY %`.
+**First fix attempt (superseded):** marking `dim_date` as a Date Table plus a separate self-scoping `Spend YoY % (Latest Year)` measure using `CALCULATE([Spend YoY %], dim_date[Year] = LatestYear)`. After syncing to the live model, XMLA validation showed this did **not** work — the new measure still relied on `DATEADD` internally and returned blank for the same Year-column-filter reason as bug #1. This confirms "Mark as Date Table" only helps in some scenarios (e.g. built-in date hierarchies from slicers) and does not fix `DATEADD`/`SAMEPERIODLASTYEAR` when the filter is a direct predicate on a non-date column of the same table.
 
-**Status:** TMDL/PBIR changes committed to `branch`. Per the established workflow (Section 16e), TMDL changes require a manual **Fabric workspace → Source Control → "Update from Git"** click before they take effect on the live semantic model — pushing to GitHub alone does not sync them. After that click, re-run the per-year XMLA check (`dim_date[Year]`-filtered `DATEADD`) to confirm it's no longer blank, and re-check the two KPI cards on-screen against the trend table's latest-year row.
+**Actual fix (validated via XMLA against the live model before implementing):** rewrote `Spend YoY %` to bypass time-intelligence functions entirely, using explicit Year-arithmetic filtering instead:
+```
+measure 'Spend YoY %' =
+    VAR CurYear = MAX(dim_date[Year])
+    VAR CurSpend = CALCULATE([Total Spend USD], FILTER(ALL(dim_date), dim_date[Year] = CurYear))
+    VAR PriorSpend = CALCULATE([Total Spend USD], FILTER(ALL(dim_date), dim_date[Year] = CurYear - 1))
+    RETURN
+        DIVIDE(CurSpend - PriorSpend, PriorSpend)
+```
+This is self-scoping in every context because `CurSpend` and `PriorSpend` are both explicitly re-filtered to a specific year rather than relying on the ambient filter context alone:
+- **Unfiltered (KPI cards, no year filter):** `CurYear` = `MAX(dim_date[Year])` across all data = 2026 (the latest year present) → correctly compares 2026 vs. 2025.
+- **Filtered by `dim_date[Year]` (trend table, one row per year):** works correctly per row (validated for 2024/2025/2026 — 2024 correctly shows blank since there's no 2023 data).
+- **Filtered by `dim_date[Date]` directly:** unaffected, still correct (this path already worked).
+- The now-redundant `Spend YoY % (Latest Year)` measure was **removed** — this single measure now handles both use cases, so both KPI cards (`v_trnd02`, `v_exec05`) reference plain `Spend YoY %` again.
+
+**Status:** TMDL/PBIR changes committed to `branch` and synced via a manual **Fabric workspace → Source Control → "Update from Git"** click (per Section 16e). Validated live via XMLA: unfiltered → `-1.86%` (2026 vs. 2025), `Year=2025` → `+2.38%` (2025 vs. 2024), `Year=2024` → blank (no prior year), all consistent with the direct-date-filter case. This also incidentally resolved a related credential issue — see the Secret hygiene row in Section 17.
+
 
