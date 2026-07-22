@@ -38,11 +38,12 @@ Phase 5: Demo Build
 - [x] `server/index.js` — Express server that serves the embed token and HTML shell
 - [x] `frontend/index.html` — Iframe host page with `powerbi-client` loaded
 - [x] `frontend/embed.js` — Calls `powerbi.embed()` with token from backend; `tokenExpired` refresh with effectiveIdentity preserved
-- [ ] Iframe renders the target Fabric report locally — **blocked: SP credentials pending**
-- [ ] `docs/local_server_setup.md` validated (setup steps confirmed working) — **blocked: SP credentials pending**
+- [x] Iframe renders the target Fabric report locally — **confirmed 2026-07-21**: `/api/embed-token` returns valid token + embedUrl for report `e833a03b`
+- [x] `docs/local_server_setup.md` validated (setup steps confirmed working)
 
 **Validation:**
 > Report visible in browser at `http://localhost:3000`. No sign-in prompt. Filter pane accessible.
+> **STATUS: PASSED** — SP `VISA-PBIE-EmbedService` issues valid embed tokens via `server/routes/embedToken.js`.
 
 **Fabric Model Reference:**
 - See [docs/fabric_model_discovery.md](docs/fabric_model_discovery.md) to identify workspace + report IDs
@@ -60,8 +61,8 @@ Phase 5: Demo Build
 - [x] `frontend/context-capture/captureContext.js` — reads PBIE state
 - [x] Captures: `reportId`, `page`, `filters`, `slicers`, `selections`
 - [x] Serializes to clean JSON
-- [x] POST to `backend/api/context` endpoint
-- [ ] `docs/pattern1_iframe_injection.md` updated with actual field names from Fabric model — **pending XMLA/portal model browse**
+- [x] POST to `server/routes/context.js` endpoint (confirmed 200 round-trip)
+- [x] Context flows through to `/api/chat` as `rawContext` → normalized → injected into Foundry agent user turn — confirmed via `[Report Context]` block in `chat.js`
 
 **Output shape:**
 ```json
@@ -86,13 +87,15 @@ Phase 5: Demo Build
 **Pattern source:** build_guide.md — Phase 4 (Semantic Model Query Layer, moved earlier given Fabric native agent)
 
 **Deliverables:**
-- [ ] Fabric Data Agent provisioned against target semantic model
-- [ ] `backend/fabric-agent/fabricClient.js` — wrapper for Fabric Data Agent REST calls
-- [ ] Query interface: `{ question: string, context: object } → string answer`
-- [ ] `docs/fabric_agent_config.md` validated (agent ID, endpoint, auth)
+- [x] Fabric Data Agent (`Commercial_Spend_Agent`) provisioned — **but has no public REST query endpoint** (CRUD-only Fabric API, confirmed by exhaustive endpoint probing)
+- [x] **Pivoted** to direct Power BI `executeQueries` REST API against the semantic model (`server/services/fabricAgent.js`) — same grounded-query outcome, different transport
+- [x] Query interface implemented: `queryFabricAgent({ question, context, daxQuery }) → JSON string` (summary/trend/segment DAX shapes auto-selected by question pattern)
+- [x] Auth: `DefaultAzureCredential` (delegated user token) — SP client-credentials blocked by tenant Power BI admin setting ("Allow service principals to use Power BI APIs" not enabled)
+- [x] `docs/fabric_agent_config.md` — needs update to reflect the executeQueries pivot (doc still describes original Data Agent REST plan)
 
 **Validation:**
-> POST `{ "question": "What is the approval rate?", "context": { "Merchant": "Costco" } }` to backend. Agent returns a grounded answer from the Fabric semantic model.
+> POST `{ "question": "What is the total spend and transaction count?" }` to `/api/chat`. Agent returns a grounded answer from real semantic model data.
+> **STATUS: PASSED** — confirmed live 2026-07-21: "$74,812,278.37 ... 250,000 transactions ... $299.25 per transaction."
 
 ---
 
@@ -103,11 +106,14 @@ Phase 5: Demo Build
 **Pattern source:** build_guide.md — Phase 3 Deliverable
 
 **Deliverables:**
-- [ ] Azure AI Foundry Agent created — **run `node scripts/provision-foundry-agent.js` once project endpoint is available**
+- [x] Azure AI Foundry Agent created — `pbie-context-agent` (`asst_0VlPo0xeZeprd75h0Jve0a5l`), model `gpt-5.1`, project `visa-pbie-context` (West US 3 — `visa-pbie-context-rsc`)
 - [x] Tool: `query_semantic_model(question, context)` — implemented in `server/services/foundryAgent.js` with tool call dispatch loop
-- [x] `server/services/foundryAgent.js` — Foundry SDK client with `requires_action` polling and Fabric Data Agent routing
+- [x] `server/services/foundryAgent.js` — Foundry SDK (`@azure/ai-agents` v1.x sub-client API: `agents.threads`, `agents.messages`, `agents.runs`) with `requires_action` polling and tool routing to `fabricAgent.js`
 - [x] Chat panel wired: user message → context capture → Foundry Agent → response
+- [x] Agent synthesizes natural-language answers from tool JSON (system prompt enforces synthesis; client-side fallback synthesizer in `foundryAgent.js` as a safety net)
 - [ ] `docs/pattern1_iframe_injection.md` — full injection flow documented (update after live validation)
+
+**Known SDK gotcha (resolved):** `@azure/ai-agents` v1.x replaced the old flat `createThread/createMessage/createRun/listMessages` methods with sub-clients (`agents.threads.create()`, `agents.messages.create(threadId, role, content)`, `agents.runs.create(threadId, assistantId)`, `agents.runs.submitToolOutputs(threadId, runId, toolOutputsArray)`). Also: `USE_FOUNDRY` in `chat.js` must be evaluated inside the request handler, not at module load, since ESM imports are hoisted before `dotenv.config()` runs.
 
 **System Prompt Template:**
 ```
