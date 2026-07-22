@@ -632,7 +632,7 @@ The file `embedded_filter_context_schema.json` (included in the starter package)
 | ~~Grant admin consent for Power BI + Fabric API permissions~~ | ~~Customer tenant admin~~ | **Not required** — client_credentials works without admin consent |
 | ~~Add SP to workspace~~ | ~~Customer tenant admin~~ | **Done** — Admin role via Fabric API |
 | ~~Confirm `CLIENT_ID` and `CLIENT_SECRET` and add to `.env`~~ | ~~Dev team~~ | **Done** — `.env` populated, embed token 200 confirmed |
-| Confirm RLS status of `Commercial_Spend_Analytics` — model has no RLS roles (Direct Lake, synthetic data) | Customer | **Not applicable** — no RLS on this model |
+| Confirm RLS status of `Commercial_Spend_Analytics` — model has no RLS roles (Direct Lake, synthetic data) | Customer | **Superseded** — actively adding 2 RLS roles + XMLA migration, see Section 15 |
 | ~~Provision Fabric Data Agent~~ | ~~Customer/Fabric admin~~ | **Done** — `Commercial_Spend_Agent` (`d2042f7c`) |
 | ~~Enable "AI skills" feature in Fabric tenant admin settings~~ | ~~Customer tenant admin~~ | **Already enabled** — REST API creation succeeded |
 
@@ -782,3 +782,82 @@ $updated = $lines | ForEach-Object {
 ```
 
 See `scripts/validate_sp_embed.ps1` for the full implementation including embed token generation and `.env` write.
+
+---
+
+## 15. Alignment vs. VISA Production Architecture & XMLA/RLS Migration Plan
+
+> **Added 2026-07-21.** Gap analysis performed against VISA's documented production PBIE architecture (Teams/email threads describing their custom-slicer + RLS work), to confirm this POC's security model is representative before the customer demo.
+
+### 15a. Gap analysis summary
+
+| VISA's documented production pattern | This POC (current) | Aligned? |
+|---|---|---|
+| App-Owns-Data embedding | App-Owns-Data (`server/routes/embedToken.js`) | ✅ |
+| Embed tokens generated via application SPN | SP via client-credentials (`VISA-PBIE-EmbedService`) | ✅ |
+| Username + role passed in `identities`/effectiveIdentity for RLS enforcement | `effectiveIdentity` with UPN passed on `GenerateToken`, but `roles` array is currently empty — model has no RLS roles defined | ⚠️ Same shape, not yet exercised |
+| Custom filter UI drives report via `setFilters()` | Documented in Section 4 (Pattern 2), `report.setFilters()` | ✅ |
+| SPN + client credentials + `executeQueries` + `impersonatedUserName` for custom slicer/RLS scenarios — **Microsoft guidance moved VISA to XMLA** because this combination hit limitations under RLS | Foundry Agent DAX execution uses SPN + `executeQueries` (Section 5 fallback) — has not hit the same limitation only because the current model has **no RLS** | ❌ **Gap — see 15b** |
+| Frontend token-transport architecture (Bearer header vs. session cookie vs. BFF) — not documented on VISA's side either | UPN passed as an unauthenticated `?user=<upn>` query param — self-flagged as not production-safe | ⚠️ Shared open risk, not a contradiction, but ours is the weaker option today |
+
+### 15b. Gap — `executeQueries` + SPN + RLS is a known limitation
+
+VISA's own custom-slicer implementation used SPN + OAuth client credentials + Power BI `executeQueries` + `impersonatedUserName` against an RLS-enabled model, and **Microsoft guidance shifted them to the XMLA endpoint** because that combination hit limitations under RLS at scale.
+
+This POC's Foundry Agent query layer currently uses the identical combination (SPN client-credentials + `executeQueries`), but has never exercised RLS because `Commercial_Spend_Analytics` has no RLS roles defined. The moment RLS is introduced (see 15d below), we should expect to hit the same limitation VISA hit — so the query layer needs to move to XMLA **before** RLS is turned on, not after.
+
+### 15c. Decision — migrate query layer from `executeQueries` to XMLA endpoint
+
+**Decision:** Move the semantic-model query layer (currently `executeQueries` in `server/services/fabricAgent.js`) to the **XMLA endpoint**, matching the path Microsoft already recommended to VISA for RLS-enabled scenarios. This replaces the Section 5 "fallback" path as the primary query mechanism going forward.
+
+- XMLA endpoint: `powerbi://api.powerbi.com/v1.0/myorg/VISA` (workspace-scoped; confirm the exact endpoint for the `VISA PBIE Context Injection` workspace once RLS roles are added)
+- Auth: same SP client-credentials token, scope `https://analysis.windows.net/powerbi/api/.default` (already used by `scripts/configure_sp.ps1` / `scripts/validate_sp_embed.ps1` — no new auth flow required)
+- DAX execution against XMLA supports the `EffectiveUserName` connection property for per-user RLS enforcement in a way that `executeQueries` + SPN does not reliably support at scale — this is the entire reason for the migration
+
+### 15d. RLS test plan — 2 users, 2 roles, functional demo
+
+To validate RLS end-to-end, the semantic model needs real RLS roles and two test identities with different data visibility:
+
+1. **Define 2 RLS roles** in the TMDL model (e.g. `Role_RegionA` / `Role_RegionB`), each with a DAX filter expression against `Dim_Client[HomeRegion]` or `Dim_Client[ClientName]` (candidate columns already confirmed queryable — see `scripts/tmp_distinct_values.mjs` output for `dim_client[HomeRegion]` / `dim_client[ClientName]` distinct values)
+2. **Provision 2 test users** (real or synthetic UPNs) and map each to exactly one role
+3. **Embed token path**: each user's embed token continues to carry `effectiveIdentity` with their UPN + the correct `roles` array entry (this is the part that was already a placeholder — now populated for real)
+4. **Chat/agent path**: DAX queries issued via XMLA must include `EffectiveUserName` for the requesting user, so the agent's answers are scoped identically to what that user sees in the embedded report
+5. **Functional test matrix (must pass before demo):**
+   - User A sees only Region A data in the embedded report AND in chat answers
+   - User B sees only Region B data in the embedded report AND in chat answers
+   - Neither user can see the other's data via either surface (report or chat) — this is the core proof point for the demo
+   - Total/aggregate figures (e.g. "total spend") return the RLS-filtered subtotal for the requesting user, not the global total
+
+### 15e. Hard constraint — embed token shape/behavior must not change
+
+**The embed token request/response shape must stay exactly as it is today.** VISA's Angular frontend (`powerbi-client-angular`) consumes the embed token the same way this POC's vanilla-JS frontend does — same `GenerateToken` call shape, same `effectiveIdentity` structure, same response fields (`accessToken`, `embedUrl`, `reportId`). The only thing that changes with this migration is that the `roles` array (currently always empty) now gets populated with a real role name per user. No breaking changes to `/api/embed-token`'s contract are permitted, since that contract is what any future Angular integration would rely on.
+
+### 15f. Constraint — Node.js XMLA client access without bypassing 2FA
+
+Company policy blocks npm packages that bypass 2FA/MFA. Most Node.js XMLA/ADOMD-style client libraries require the legacy **Resource Owner Password Credentials (ROPC)** OAuth flow (raw username + password) to authenticate against Analysis Services/XMLA — ROPC is a "public client" flow that bypasses interactive MFA/Conditional Access, which is why packages built on it are blocked.
+
+**Solution:** Do not use a Node-native XMLA/ADOMD npm package. Instead, execute XMLA/DAX calls through a small PowerShell shim (`Invoke-ASCmd`, part of the `SqlServer` PowerShell module) invoked from Node via `child_process` — the same pattern already used for the existing `scripts/*.ps1` SP token scripts. This shim authenticates using the **same SP client-credentials token** already used everywhere else in this project (scope `https://analysis.windows.net/powerbi/api/.default`) — an app-only OAuth flow that never involves ROPC or MFA bypass, so it is not subject to the blocked-package policy.
+
+```powershell
+# Illustrative — token acquired via existing client-credentials flow (see Section 14),
+# then passed to Invoke-ASCmd for the actual DAX/XMLA call with EffectiveUserName set
+Invoke-ASCmd -Server "asazure://api.powerbi.com/v1.0/myorg/VISA" `
+  -Database $datasetId `
+  -Query $daxQuery `
+  -ConnectionString "Provider=MSOLAP;Data Source=asazure://api.powerbi.com/v1.0/myorg/VISA;Password=$spToken;Impersonate=$effectiveUserName"
+```
+
+Node's `server/services/fabricAgent.js` shells out to this PowerShell script per query (or a persistent child process for lower latency) instead of calling `executeQueries` directly.
+
+### 15g. Open items — tracked for this migration
+
+| Item | Owner | Status |
+|------|-------|--------|
+| Define 2 RLS roles in TMDL (`Role_RegionA` / `Role_RegionB`) against `Dim_Client` | Dev team | Not started |
+| Provision 2 test users, map to roles | Dev team | Not started |
+| Migrate `server/services/fabricAgent.js` from `executeQueries` to XMLA (via PowerShell `Invoke-ASCmd` shim) | Dev team | Not started |
+| Populate `roles` array in embed token `effectiveIdentity` per user (currently always empty) | Dev team | Not started |
+| Functional test: User A/User B report + chat data isolation (Section 15d matrix) | Dev team | Not started |
+| Confirm embed token request/response contract unchanged post-migration (Section 15e) | Dev team | Not started |
+
+This supersedes the "Confirm RLS status" row in Section 10's Implementation Checklist — RLS is now being actively added rather than being "not applicable."
