@@ -1,4 +1,5 @@
 import express from 'express';
+import { randomUUID } from 'crypto';
 import { normalizeContext, buildContextBlock } from '../services/contextService.js';
 import { sendToFoundryAgent } from '../services/foundryAgent.js';
 import { queryFabricAgent } from '../services/fabricAgent.js';
@@ -10,11 +11,17 @@ router.post('/', async (req, res) => {
   // so top-level module constants would see undefined env vars.
   const USE_FOUNDRY = Boolean(process.env.FOUNDRY_AGENT_ID && process.env.FOUNDRY_PROJECT_ENDPOINT);
   try {
-    const { question, rawContext } = req.body;
+    const { question, rawContext, conversationId: clientConversationId } = req.body;
 
     if (!question || typeof question !== 'string') {
       return res.status(400).json({ error: 'question (string) is required' });
     }
+
+    // Sprint 5: a conversationId ties requests to the same Foundry thread so
+    // follow-up questions and page transitions retain history. Client generates
+    // one on first use and echoes it back on subsequent requests; we mint one
+    // here as a fallback if the client didn't send one.
+    const conversationId = clientConversationId || randomUUID();
 
     const businessContext = rawContext ? normalizeContext(rawContext) : null;
     const contextBlock = businessContext ? buildContextBlock(businessContext) : '';
@@ -24,13 +31,13 @@ router.post('/', async (req, res) => {
       const userTurn = contextBlock
         ? `[Report Context]\n${contextBlock}\n\n[User Question]\n${question}`
         : question;
-      answer = await sendToFoundryAgent({ userTurn });
+      answer = await sendToFoundryAgent({ userTurn, conversationId });
     } else {
       // Direct Fabric Data Agent path (used when FOUNDRY_AGENT_ID is not configured)
       answer = await queryFabricAgent({ question, context: businessContext });
     }
 
-    res.json({ answer });
+    res.json({ answer, conversationId });
   } catch (err) {
     console.error('[chat]', err.message);
     res.status(500).json({ error: err.message });

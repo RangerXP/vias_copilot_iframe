@@ -56,6 +56,22 @@ function synthesizeToolResult(jsonStr) {
 const POLL_INTERVAL_MS = 800;
 const POLL_TIMEOUT_MS = 120_000;
 
+// Sprint 5 — multi-turn conversation memory. Maps a client-supplied conversationId
+// to a Foundry thread ID so page transitions/follow-up questions within the same
+// browser session share history instead of starting a fresh thread every request.
+// In-memory only (process lifetime) — fine for a local demo server.
+const MAX_TRACKED_CONVERSATIONS = 500;
+const threadsByConversation = new Map();
+
+function rememberThread(conversationId, threadId) {
+  if (!conversationId) return;
+  if (threadsByConversation.size >= MAX_TRACKED_CONVERSATIONS) {
+    const oldestKey = threadsByConversation.keys().next().value;
+    threadsByConversation.delete(oldestKey);
+  }
+  threadsByConversation.set(conversationId, threadId);
+}
+
 let projectClient = null;
 
 function getClient() {
@@ -104,17 +120,29 @@ async function dispatchToolCall(toolCall, fallbackQuestion) {
  *
  * Requires FOUNDRY_PROJECT_ENDPOINT and FOUNDRY_AGENT_ID in .env (Sprint 4).
  *
- * @param {{ userTurn: string }} params
+ * @param {{ userTurn: string, conversationId?: string }} params
  * @returns {Promise<string>} agent response text
  */
-export async function sendToFoundryAgent({ userTurn }) {
+export async function sendToFoundryAgent({ userTurn, conversationId }) {
   if (!process.env.FOUNDRY_AGENT_ID) {
     throw new Error('FOUNDRY_AGENT_ID not set in .env (Sprint 4)');
   }
 
   // @azure/ai-projects v1.0.1 — sub-client API with positional arguments
   const agents = getClient().agents;
-  const thread = await agents.threads.create();
+
+  // Sprint 5: reuse the existing thread for this conversation (page transitions /
+  // follow-up questions) instead of always starting a fresh one.
+  const existingThreadId = conversationId ? threadsByConversation.get(conversationId) : null;
+  let thread;
+  if (existingThreadId) {
+    thread = { id: existingThreadId };
+    console.log(`[foundryAgent] reusing thread ${existingThreadId} for conversation ${conversationId}`);
+  } else {
+    thread = await agents.threads.create();
+    rememberThread(conversationId, thread.id);
+    console.log(`[foundryAgent] created thread ${thread.id}${conversationId ? ` for conversation ${conversationId}` : ''}`);
+  }
 
   // messages.create(threadId, role, content)
   await agents.messages.create(thread.id, 'user', userTurn);
