@@ -11,7 +11,7 @@
 | Tenant | `MngEnvMCAP660444.onmicrosoft.com` |
 | Tenant ID | `b7e47691-9726-4f67-a302-e567815f3522` |
 | Subscription | `ME-MngEnvMCAP660444-seankelley-2` (`c4a3460a-3527-460c-ab59-4a4c7a15646b`) |
-| Fabric Capacity ID | `cb113ec9-926c-4af4-99fe-0b5b55fb69b6` |
+| Fabric Capacity | [fabriccapwest3](https://portal.azure.com/#resource/subscriptions/0a913923-fe62-46fb-8fdd-b78fb498f7a9/resourceGroups/Fabric-West3-RG/providers/Microsoft.Fabric/capacities/fabriccapwest3) |
 
 ## Workspaces
 

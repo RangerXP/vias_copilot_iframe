@@ -1,0 +1,8 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/2.1.0/schema.json",
+  "name": "d0d1d2d3d4d5d6d7d8d9",
+  "displayName": "Filter Context Analysis",
+  "displayOption": "FitToPage",
+  "height": 800,
+  "width": 1280
+}

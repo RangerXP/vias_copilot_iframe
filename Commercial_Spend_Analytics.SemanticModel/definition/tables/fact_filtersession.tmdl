@@ -1,0 +1,121 @@
+table fact_filtersession
+	lineageTag: a103a316-b98b-401b-8939-1cb6d220eacc
+	sourceLineageTag: [dbo].[fact_filtersession]
+
+	column SessionId
+		dataType: string
+		lineageTag: 15a20cab-5eb7-4d08-a42e-ad3d5307720f
+		sourceLineageTag: SessionId
+		summarizeBy: none
+		sourceColumn: SessionId
+
+		annotation SummarizationSetBy = Automatic
+
+	column UserId
+		dataType: string
+		lineageTag: 642c39bc-8651-46c9-9387-54995f0ca53d
+		sourceLineageTag: UserId
+		summarizeBy: none
+		sourceColumn: UserId
+
+		annotation SummarizationSetBy = Automatic
+
+	column SessionTimestamp
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: 21610f48-13dc-44f1-a857-3b5ffa1d9d1c
+		sourceLineageTag: SessionTimestamp
+		summarizeBy: none
+		sourceColumn: SessionTimestamp
+
+		annotation SummarizationSetBy = Automatic
+
+	column SelectedYear
+		dataType: int64
+		formatString: 0
+		lineageTag: 9fdb054e-4fb5-4bf7-bd23-ac60fff44636
+		sourceLineageTag: SelectedYear
+		summarizeBy: sum
+		sourceColumn: SelectedYear
+
+		annotation SummarizationSetBy = Automatic
+
+	column SelectedQuarter
+		dataType: string
+		lineageTag: b293f109-b79c-4325-9639-dbc353aab9f8
+		sourceLineageTag: SelectedQuarter
+		summarizeBy: none
+		sourceColumn: SelectedQuarter
+
+		annotation SummarizationSetBy = Automatic
+
+	column SelectedCountries
+		dataType: string
+		lineageTag: 596cbd0f-a12a-4d28-9d37-a58891cb7ff2
+		sourceLineageTag: SelectedCountries
+		summarizeBy: none
+		sourceColumn: SelectedCountries
+
+		annotation SummarizationSetBy = Automatic
+
+	column SelectedClients
+		dataType: string
+		lineageTag: 6a7e1125-c5e0-4a16-bf05-0cf54097c3f9
+		sourceLineageTag: SelectedClients
+		summarizeBy: none
+		sourceColumn: SelectedClients
+
+		annotation SummarizationSetBy = Automatic
+
+	column SelectedSegments
+		dataType: string
+		lineageTag: a4baeba3-ca0c-48d0-8754-e45cb37b436c
+		sourceLineageTag: SelectedSegments
+		summarizeBy: none
+		sourceColumn: SelectedSegments
+
+		annotation SummarizationSetBy = Automatic
+
+	column SelectedProducts
+		dataType: string
+		lineageTag: 4e8d48c9-a778-4eba-952b-e447540dda7c
+		sourceLineageTag: SelectedProducts
+		summarizeBy: none
+		sourceColumn: SelectedProducts
+
+		annotation SummarizationSetBy = Automatic
+
+	column SelectedMCCGroups
+		dataType: string
+		lineageTag: 1de93101-695f-4c5f-a4bd-cedd6539f06c
+		sourceLineageTag: SelectedMCCGroups
+		summarizeBy: none
+		sourceColumn: SelectedMCCGroups
+
+		annotation SummarizationSetBy = Automatic
+
+	column SessionEventType
+		dataType: string
+		lineageTag: 731c7eb8-d64e-49a1-93bf-56d4ab7a7196
+		sourceLineageTag: SessionEventType
+		summarizeBy: none
+		sourceColumn: SessionEventType
+
+		annotation SummarizationSetBy = Automatic
+
+	column ContextConsumer
+		dataType: string
+		lineageTag: b4ba050f-a5be-4328-bb95-1c3514ce1783
+		sourceLineageTag: ContextConsumer
+		summarizeBy: none
+		sourceColumn: ContextConsumer
+
+		annotation SummarizationSetBy = Automatic
+
+	partition fact_filtersession = entity
+		mode: directLake
+		source
+			entityName: fact_filtersession
+			schemaName: dbo
+			expressionSource: 'DirectLake - Commercial_Spend_Analytics'
+

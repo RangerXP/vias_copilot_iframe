@@ -1,0 +1,88 @@
+table dim_date
+	lineageTag: d00d431a-ebb6-4dab-813b-24f3e1a1cc8c
+	sourceLineageTag: [dbo].[dim_date]
+
+	column DateKey
+		dataType: int64
+		formatString: 0
+		lineageTag: 8ec16c75-433c-434a-825c-32d45a529340
+		sourceLineageTag: DateKey
+		summarizeBy: count
+		sourceColumn: DateKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column Date
+		dataType: dateTime
+		formatString: General Date
+		lineageTag: e5562a2a-504b-43d1-93d0-b64e857475fd
+		sourceLineageTag: Date
+		summarizeBy: none
+		sourceColumn: Date
+
+		annotation SummarizationSetBy = Automatic
+
+	column Year
+		dataType: int64
+		formatString: 0
+		lineageTag: d8a1e446-142d-49a6-81b6-64f8837c4e90
+		sourceLineageTag: Year
+		summarizeBy: sum
+		sourceColumn: Year
+
+		annotation SummarizationSetBy = Automatic
+
+	column Quarter
+		dataType: string
+		lineageTag: cc53c34f-20d6-4de5-ac2a-b492bdea4321
+		sourceLineageTag: Quarter
+		summarizeBy: none
+		sourceColumn: Quarter
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthNumber
+		dataType: int64
+		formatString: 0
+		lineageTag: 2a07453e-9bd2-4eaf-8c48-fc3b7b5c5743
+		sourceLineageTag: MonthNumber
+		summarizeBy: sum
+		sourceColumn: MonthNumber
+
+		annotation SummarizationSetBy = Automatic
+
+	column MonthName
+		dataType: string
+		lineageTag: 4788ca1c-4b82-4101-b94e-989fac55f17e
+		sourceLineageTag: MonthName
+		summarizeBy: none
+		sourceColumn: MonthName
+
+		annotation SummarizationSetBy = Automatic
+
+	column FiscalYear
+		dataType: int64
+		formatString: 0
+		lineageTag: b0f2ead9-72ca-4858-a9ea-4fde2a7bce92
+		sourceLineageTag: FiscalYear
+		summarizeBy: sum
+		sourceColumn: FiscalYear
+
+		annotation SummarizationSetBy = Automatic
+
+	column FiscalQuarter
+		dataType: string
+		lineageTag: 85772f6f-23e2-4888-9db6-86ac490c1f52
+		sourceLineageTag: FiscalQuarter
+		summarizeBy: none
+		sourceColumn: FiscalQuarter
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_date = entity
+		mode: directLake
+		source
+			entityName: dim_date
+			schemaName: dbo
+			expressionSource: 'DirectLake - Commercial_Spend_Analytics'
+

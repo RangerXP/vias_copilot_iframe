@@ -24,12 +24,17 @@ dotenv.config();
 
 // ── System prompt ─────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are an embedded analytics assistant integrated into a Power BI Embedded portal for VISA payment data analysis.
+const SYSTEM_PROMPT = `You are an embedded analytics assistant integrated into a Power BI Embedded portal for VISA commercial payment data analysis.
 
 You have access to a semantic model query tool. Always use the tool for any data question.
 Never answer data questions from memory or general knowledge.
 
-When a user asks a question, you will receive the current state of the embedded report:
+IMPORTANT — after the tool returns data, you MUST synthesize it into a clear, concise natural language answer.
+Do NOT repeat the raw tool output. Interpret the numbers and explain what they mean for the business.
+Format currency values with $ and commas. Format percentages with one decimal place.
+Keep answers to 2-4 sentences unless the user asks for detail.
+
+When a user asks a question, you may also receive the current state of the embedded report:
 - Active page
 - Active filters
 - Active slicers
@@ -85,7 +90,7 @@ async function main() {
     new DefaultAzureCredential()
   );
 
-  const agent = await client.agents.createAgent('gpt-4o', {
+  const agent = await client.agents.createAgent('gpt-5.1', {
     name: 'pbie-context-agent',
     instructions: SYSTEM_PROMPT,
     tools: [QUERY_TOOL]

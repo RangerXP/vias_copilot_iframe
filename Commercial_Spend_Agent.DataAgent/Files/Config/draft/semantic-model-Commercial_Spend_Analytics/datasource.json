@@ -1,0 +1,11 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/dataAgent/definition/dataSource/1.0.0/schema.json",
+  "artifactId": "ba57cf3a-f128-9476-4e71-a087b7bc94fc",
+  "workspaceId": "00000000-0000-0000-0000-000000000000",
+  "dataSourceInstructions": "Primary data source. Use DAX measures for all numeric aggregations. Dimensions available: dim_date, dim_client, dim_country, dim_merchant, dim_mcc, dim_product, dim_segment, dim_approvalstatus. The fact_filtersession table captures host-app filter context for grounding agent responses to the user current report view.",
+  "displayName": "Commercial_Spend_Analytics",
+  "type": "semantic_model",
+  "userDescription": "VISA Commercial Spend Analytics Direct Lake semantic model — 250,000 commercial card transactions with 8 dimensions and 9 DAX measures.",
+  "metadata": null,
+  "elements": []
+}

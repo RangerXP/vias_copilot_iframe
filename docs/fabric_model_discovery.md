@@ -12,7 +12,7 @@ This document guides the process of identifying an **existing Microsoft Fabric s
 |-------|-------|
 | Tenant | `MngEnvMCAP660444.onmicrosoft.com` |
 | Tenant ID | `b7e47691-9726-4f67-a302-e567815f3522` |
-| Fabric Capacity | `fabcmksettlement` (`cb113ec9-926c-4af4-99fe-0b5b55fb69b6`) |
+| Fabric Capacity | [fabriccapwest3](https://portal.azure.com/#resource/subscriptions/0a913923-fe62-46fb-8fdd-b78fb498f7a9/resourceGroups/Fabric-West3-RG/providers/Microsoft.Fabric/capacities/fabriccapwest3) |
 | Subscription | `ME-MngEnvMCAP660444-seankelley-2` (`c4a3460a-3527-460c-ab59-4a4c7a15646b`) |
 | Region | West US |
 | Admin Account | `seankelley@MngEnvMCAP660444.onmicrosoft.com` |
@@ -25,9 +25,9 @@ This document guides the process of identifying an **existing Microsoft Fabric s
 
 Navigate to: **https://app.fabric.microsoft.com**
 
-You are already confirmed logged in. The capacity `fabcmksettlement` is visible at:
+You are already confirmed logged in. The capacity `fabriccapwest3` is visible at:
 ```
-https://portal.azure.com/#@mngenvmcap253522.onmicrosoft.com/resource/subscriptions/7bfa54e8-38b2-49dc-9f48-98729405ecc9/resourceGroups/cmk-settlement-rg/providers/Microsoft.Fabric/capacities/fabcmksettlement/overview
+https://portal.azure.com/#resource/subscriptions/0a913923-fe62-46fb-8fdd-b78fb498f7a9/resourceGroups/Fabric-West3-RG/providers/Microsoft.Fabric/capacities/fabriccapwest3
 ```
 
 Workspaces assigned to this capacity will appear in the Fabric portal sidebar.

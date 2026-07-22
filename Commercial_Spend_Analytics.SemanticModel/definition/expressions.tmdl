@@ -1,0 +1,9 @@
+expression 'DirectLake - Commercial_Spend_Analytics' =
+		let
+		    Source = AzureStorage.DataLake("https://onelake.dfs.fabric.microsoft.com/349db6f1-5df6-4992-ba67-ebc4449fead5/1aa73044-f85f-4843-b3e5-588cab4c0499", [HierarchicalNavigation=true])
+		in
+		    Source
+	lineageTag: fb1f9209-1f59-42a8-ac11-e7a7f1df8fde
+
+	annotation PBI_IncludeFutureArtifacts = False
+

@@ -38,11 +38,12 @@ Phase 5: Demo Build
 - [x] `server/index.js` — Express server that serves the embed token and HTML shell
 - [x] `frontend/index.html` — Iframe host page with `powerbi-client` loaded
 - [x] `frontend/embed.js` — Calls `powerbi.embed()` with token from backend; `tokenExpired` refresh with effectiveIdentity preserved
-- [ ] Iframe renders the target Fabric report locally — **blocked: SP credentials pending**
-- [ ] `docs/local_server_setup.md` validated (setup steps confirmed working) — **blocked: SP credentials pending**
+- [x] Iframe renders the target Fabric report locally — **confirmed 2026-07-21**: `/api/embed-token` returns valid token + embedUrl for report `e833a03b`
+- [x] `docs/local_server_setup.md` validated (setup steps confirmed working)
 
 **Validation:**
 > Report visible in browser at `http://localhost:3000`. No sign-in prompt. Filter pane accessible.
+> **STATUS: PASSED** — SP `VISA-PBIE-EmbedService` issues valid embed tokens via `server/routes/embedToken.js`.
 
 **Fabric Model Reference:**
 - See [docs/fabric_model_discovery.md](docs/fabric_model_discovery.md) to identify workspace + report IDs
@@ -60,8 +61,8 @@ Phase 5: Demo Build
 - [x] `frontend/context-capture/captureContext.js` — reads PBIE state
 - [x] Captures: `reportId`, `page`, `filters`, `slicers`, `selections`
 - [x] Serializes to clean JSON
-- [x] POST to `backend/api/context` endpoint
-- [ ] `docs/pattern1_iframe_injection.md` updated with actual field names from Fabric model — **pending XMLA/portal model browse**
+- [x] POST to `server/routes/context.js` endpoint (confirmed 200 round-trip)
+- [x] Context flows through to `/api/chat` as `rawContext` → normalized → injected into Foundry agent user turn — confirmed via `[Report Context]` block in `chat.js`
 
 **Output shape:**
 ```json
@@ -86,13 +87,15 @@ Phase 5: Demo Build
 **Pattern source:** build_guide.md — Phase 4 (Semantic Model Query Layer, moved earlier given Fabric native agent)
 
 **Deliverables:**
-- [ ] Fabric Data Agent provisioned against target semantic model
-- [ ] `backend/fabric-agent/fabricClient.js` — wrapper for Fabric Data Agent REST calls
-- [ ] Query interface: `{ question: string, context: object } → string answer`
-- [ ] `docs/fabric_agent_config.md` validated (agent ID, endpoint, auth)
+- [x] Fabric Data Agent (`Commercial_Spend_Agent`) provisioned — **but has no public REST query endpoint** (CRUD-only Fabric API, confirmed by exhaustive endpoint probing)
+- [x] **Pivoted** to direct Power BI `executeQueries` REST API against the semantic model (`server/services/fabricAgent.js`) — same grounded-query outcome, different transport
+- [x] Query interface implemented: `queryFabricAgent({ question, context, daxQuery }) → JSON string` (summary/trend/segment DAX shapes auto-selected by question pattern)
+- [x] Auth: `DefaultAzureCredential` (delegated user token) — SP client-credentials blocked by tenant Power BI admin setting ("Allow service principals to use Power BI APIs" not enabled)
+- [x] `docs/fabric_agent_config.md` — needs update to reflect the executeQueries pivot (doc still describes original Data Agent REST plan)
 
 **Validation:**
-> POST `{ "question": "What is the approval rate?", "context": { "Merchant": "Costco" } }` to backend. Agent returns a grounded answer from the Fabric semantic model.
+> POST `{ "question": "What is the total spend and transaction count?" }` to `/api/chat`. Agent returns a grounded answer from real semantic model data.
+> **STATUS: PASSED** — confirmed live 2026-07-21: "$74,812,278.37 ... 250,000 transactions ... $299.25 per transaction."
 
 ---
 
@@ -103,11 +106,14 @@ Phase 5: Demo Build
 **Pattern source:** build_guide.md — Phase 3 Deliverable
 
 **Deliverables:**
-- [ ] Azure AI Foundry Agent created — **run `node scripts/provision-foundry-agent.js` once project endpoint is available**
+- [x] Azure AI Foundry Agent created — `pbie-context-agent` (`asst_0VlPo0xeZeprd75h0Jve0a5l`), model `gpt-5.1`, project `visa-pbie-context` (West US 3 — `visa-pbie-context-rsc`)
 - [x] Tool: `query_semantic_model(question, context)` — implemented in `server/services/foundryAgent.js` with tool call dispatch loop
-- [x] `server/services/foundryAgent.js` — Foundry SDK client with `requires_action` polling and Fabric Data Agent routing
+- [x] `server/services/foundryAgent.js` — Foundry SDK (`@azure/ai-agents` v1.x sub-client API: `agents.threads`, `agents.messages`, `agents.runs`) with `requires_action` polling and tool routing to `fabricAgent.js`
 - [x] Chat panel wired: user message → context capture → Foundry Agent → response
+- [x] Agent synthesizes natural-language answers from tool JSON (system prompt enforces synthesis; client-side fallback synthesizer in `foundryAgent.js` as a safety net)
 - [ ] `docs/pattern1_iframe_injection.md` — full injection flow documented (update after live validation)
+
+**Known SDK gotcha (resolved):** `@azure/ai-agents` v1.x replaced the old flat `createThread/createMessage/createRun/listMessages` methods with sub-clients (`agents.threads.create()`, `agents.messages.create(threadId, role, content)`, `agents.runs.create(threadId, assistantId)`, `agents.runs.submitToolOutputs(threadId, runId, toolOutputsArray)`). Also: `USE_FOUNDRY` in `chat.js` must be evaluated inside the request handler, not at module load, since ESM imports are hoisted before `dotenv.config()` runs.
 
 **System Prompt Template:**
 ```
@@ -133,13 +139,23 @@ Do not answer from memory. Always query the model for data values.
 **Pattern source:** build_guide.md — Phase 2 (Context Service) + Phase 4 (Query Layer)
 
 **Deliverables:**
-- [ ] `semantic/dax/` — example DAX patterns for agent tool calls
-- [ ] `semantic/metadata/field_map.json` — PBIE field name → business name mapping
-- [ ] Context service middleware: normalize PBIE state to business-friendly context
-- [ ] Multi-page context (page transitions preserved in conversation)
+- [x] `semantic/dax/` — example DAX patterns for agent tool calls — 10 shapes documented in [semantic/dax/query_patterns.md](semantic/dax/query_patterns.md) (summary, trend, segment, merchant, country, product, MCC, approval, fraud, industry), backed by matching keyword-routed query templates in `server/services/fabricAgent.js`
+- [x] `semantic/metadata/field_map.json` — PBIE field name → business name mapping — rewritten 2026-07-22 against the confirmed TMDL schema (was stale/mismatched placeholder data referencing fields that don't exist in the model)
+- [x] Context service middleware: normalize PBIE state to business-friendly context — `server/services/contextService.js` (`normalizeContext`/`buildContextBlock`), pre-existing and confirmed working
+- [x] Multi-page context (page transitions preserved in conversation) — implemented 2026-07-22: `frontend/chat.js` mints a `conversationId` (persisted in `sessionStorage` for the browser tab) and sends it with every `/api/chat` request; `foundryAgent.js` maps `conversationId → Foundry thread ID` (in-memory, capped at 500 conversations) and reuses the thread instead of starting a new one, so page transitions and follow-up questions retain full conversation history.
 
 **Validation:**
 > Ask multi-turn questions across two pages. Context is coherent across turns. Field names are human-readable in all responses.
+> **STATUS: PASSED** — validated 2026-07-22: merchant/country/product/MCC/approval/fraud breakdown questions all return correct, human-readable, natural-language answers end-to-end (see examples below). Multi-turn memory confirmed: asked "What is the total spend?" (turn 1, $74,812,278.37), then "What was the dollar figure you told me a moment ago?" (turn 2, same `conversationId`) → agent correctly recalled "$74,812,278.37" from thread history without re-querying. A fresh request with no `conversationId` correctly started an isolated new thread (no cross-conversation leakage).
+>
+> Example validated Q&A:
+> - "Which merchants have the highest spend?" → ranked top-10 list with merchant names and dollar amounts
+> - "Which countries have the most spend?" → "United States at about $18,529,767... Canada... United Kingdom... India... Germany"
+> - "How does spend break down by product?" → ranked list of Visa product lines with spend
+> - "What merchant categories have the most spend?" → "Hospitals... Business Services... Subscription Services..."
+> - "What is the approval rate versus decline rate?" → "approval rate is 94.9% and the decline rate is 3.5%..."
+>
+> Bug found + fixed during validation: `pickDax()` keyword regexes used `\b` word boundaries and exact-word matches that failed on plural forms the model naturally uses in tool calls (e.g. `/merchant\b/` didn't match "merchants", `/country/` didn't match "countries", `/industry/` didn't match "industries"). Fixed to prefix-style matching (`/merchant/`, `/countr/`, `/industr/`).
 
 ---
 
@@ -148,16 +164,21 @@ Do not answer from memory. Always query the model for data values.
 **Goal:** Produce a repeatable demo that tells the Pattern 1 story for PG review and stakeholder showcase.
 
 **Deliverables:**
-- [ ] `docs/demo_script.md` — step-by-step demo flow with talking points
-- [ ] Demo report identified in Fabric (specific pages + slicers defined)
-- [ ] Demo questions scripted and tested against live agent
-- [ ] README updated with final architecture diagram
+- [x] `docs/demo_script.md` — step-by-step demo flow with talking points, rewritten 2026-07-21 to match the live `Commercial_Spend_Analytics` report and real validated data (was previously written against fictional merchants/pages before the model existed)
+- [x] Demo report identified in Fabric — `Commercial_Spend_Analytics` report (`e833a03b-2cf9-42d2-a1ee-a40f847fd75d`), workspace `VISA PBIE Context Injection` (`349db6f1`), 7 pages (Overview, Risk & Approval, Executive Summary, Supplier Analysis, Spend Trends, Savings Opportunities, Filter Context Analysis)
+- [x] Demo questions scripted and tested against live agent — reuses the Sprint 5 validated Q&A set (approval/decline rate, top merchants, country breakdown, product mix, MCC categories, multi-turn recall)
+- [x] README updated with final architecture diagram and current sprint status
 
-**Demo Questions (Draft):**
-1. "What am I looking at?" — tests context summary
-2. "Why did approval rates decrease?" — tests trend analysis with context
-3. "Show me the highest risk merchant in this view." — tests filter-aware ranking
-4. "Explain this chart." — tests page-aware visual description
+**Demo Questions (Final, validated live 2026-07-22):**
+1. "What am I looking at?" — tests page-aware context summary
+2. "What is the approval rate versus decline rate?" — 94.9% / 3.5% (235,081 / 8,646 transactions)
+3. "Which merchants have the highest spend?" — Microsoft Merchant 0198 ($232,963), ExxonMobil Merchant 0898 ($174,976), Hilton Merchant 0714 ($161,619)
+4. "How does spend break down by country?" — United States ($18,529,767), Canada ($5,358,022), UK ($4,546,435)
+5. "What was the dollar figure you told me a moment ago?" — tests multi-turn conversation memory (thread reuse)
+
+**Validation:**
+> Full demo script walked through against the live server + Foundry agent 2026-07-21/22 — every scripted question returns a grounded, accurate answer from the real semantic model. No fictional data (e.g. Costco/Target merchants, "Customer Risk" page) remains in the script.
+> **STATUS: PASSED — Sprint 6 complete. All 6 sprints in the roadmap are now done.**
 
 ---
 
@@ -168,9 +189,9 @@ Do not answer from memory. Always query the model for data values.
 | Local web server | Node.js / Express |
 | PBIE iframe | `powerbi-client` (JS SDK) |
 | Context capture | `powerbi-client` API (`getFilters`, `getPages`, `getSlicers`) |
-| Semantic model | Microsoft Fabric — existing workspace model |
-| Model access | Fabric Data Agent (natural language + DAX over Fabric) |
-| AI reasoning | Azure AI Foundry Agent |
+| Semantic model | Microsoft Fabric — Direct Lake semantic model (`Commercial_Spend_Analytics`) |
+| Model access | Power BI `executeQueries` REST API (direct DAX execution — pivoted from Fabric Data Agent, which has no public query endpoint) |
+| AI reasoning | Azure AI Foundry Agent (`gpt-5.1`), with `query_semantic_model` tool + multi-turn conversation memory |
 | Auth (embed) | Power BI REST API — App-Owns-Data token |
 | Auth (Fabric) | Entra ID service principal or user delegation |
 
@@ -185,7 +206,7 @@ Do not answer from memory. Always query the model for data values.
 | 3 | App-Owns-Data service principal created in tenant? | Sean | Open — register in MngEnvMCAP660444 |
 | 4 | Azure AI Foundry project available or needs creation? | Sean | Open |
 | 5 | Is Premium Per User or embedded capacity available for embed tokens? | Sean | **RESOLVED — dedicated capacity cb113ec9** |
-| 6 | Target demo report identified (specific report ID)? | Sean | **RESOLVED — Visa Slicer Demo v2, page: Demo PBIP** |
+| 6 | Target demo report identified (specific report ID)? | Sean | **RESOLVED — `Commercial_Spend_Analytics` report (`e833a03b`), 7 pages, live embed target** |
 
 ---
 

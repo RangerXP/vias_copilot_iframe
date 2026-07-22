@@ -1,0 +1,39 @@
+table dim_product
+	lineageTag: f179aeb4-4647-4971-9d40-c4f7ea802c96
+	sourceLineageTag: [dbo].[dim_product]
+
+	column ProductKey
+		dataType: int64
+		formatString: 0
+		lineageTag: 2fdf2e74-556a-4c41-bd90-a582df17b3dc
+		sourceLineageTag: ProductKey
+		summarizeBy: count
+		sourceColumn: ProductKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column ProductName
+		dataType: string
+		lineageTag: f3fa0076-5010-4aca-834b-c0dca14edc6d
+		sourceLineageTag: ProductName
+		summarizeBy: none
+		sourceColumn: ProductName
+
+		annotation SummarizationSetBy = Automatic
+
+	column ProductFamily
+		dataType: string
+		lineageTag: 7de0e2c8-dc00-4a1f-85a7-ba72674c612d
+		sourceLineageTag: ProductFamily
+		summarizeBy: none
+		sourceColumn: ProductFamily
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_product = entity
+		mode: directLake
+		source
+			entityName: dim_product
+			schemaName: dbo
+			expressionSource: 'DirectLake - Commercial_Spend_Analytics'
+

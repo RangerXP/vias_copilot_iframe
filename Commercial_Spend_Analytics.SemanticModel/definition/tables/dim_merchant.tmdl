@@ -1,0 +1,59 @@
+table dim_merchant
+	lineageTag: 7b413c99-a01d-4821-9885-3234cb2ac669
+	sourceLineageTag: [dbo].[dim_merchant]
+
+	column MerchantKey
+		dataType: int64
+		formatString: 0
+		lineageTag: 77955063-1d4b-4839-b0e8-fd12418fa9ad
+		sourceLineageTag: MerchantKey
+		summarizeBy: count
+		sourceColumn: MerchantKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column MerchantName
+		dataType: string
+		lineageTag: 4145df23-c035-4c5c-bb4b-6a883f5e2d03
+		sourceLineageTag: MerchantName
+		summarizeBy: none
+		sourceColumn: MerchantName
+
+		annotation SummarizationSetBy = Automatic
+
+	column MCCKey
+		dataType: int64
+		formatString: 0
+		lineageTag: aa859e8f-fbe3-4d2b-bd09-e4733abb793c
+		sourceLineageTag: MCCKey
+		summarizeBy: count
+		sourceColumn: MCCKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column CountryKey
+		dataType: int64
+		formatString: 0
+		lineageTag: 1e93d095-bb9b-4760-9cb3-24e771c9bf1d
+		sourceLineageTag: CountryKey
+		summarizeBy: count
+		sourceColumn: CountryKey
+
+		annotation SummarizationSetBy = Automatic
+
+	column MerchantType
+		dataType: string
+		lineageTag: d5679b42-553e-47c0-bef0-1ca5d842032c
+		sourceLineageTag: MerchantType
+		summarizeBy: none
+		sourceColumn: MerchantType
+
+		annotation SummarizationSetBy = Automatic
+
+	partition dim_merchant = entity
+		mode: directLake
+		source
+			entityName: dim_merchant
+			schemaName: dbo
+			expressionSource: 'DirectLake - Commercial_Spend_Analytics'
+

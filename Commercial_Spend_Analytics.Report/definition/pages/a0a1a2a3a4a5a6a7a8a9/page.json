@@ -1,0 +1,8 @@
+{
+  "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/report/definition/page/2.1.0/schema.json",
+  "name": "a0a1a2a3a4a5a6a7a8a9",
+  "displayName": "Spend Trends",
+  "displayOption": "FitToPage",
+  "height": 1010,
+  "width": 1280
+}
