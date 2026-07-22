@@ -25,7 +25,8 @@ first. See the function in `fabricAgent.js` for the exact routing rules.
 | `High Fraud Transactions` | Risk | `#,0` |
 | `Approval Rate` | Approval | `0.0%` |
 | `Decline Rate` | Approval | `0.0%` |
-| `Spend YoY %` | Time Intelligence | `0.0%` — **known bug: partial-year comparison inflates this measure (49.6%). Needs TMDL fix, out of PBIR scope.** |
+| `Spend YoY %` | Time Intelligence | `0.0%` — year-over-year vs. same period prior year. Requires filtering by year for a meaningful result (blank at unfiltered grand-total level by design). |
+| `Spend YoY % (Latest Year)` | Time Intelligence | `0.0%` — self-scoped to the most recent year in the model; used by the headline KPI cards so they always show a specific, defensible year-over-year figure. **Fixed 2026-07-22** — see `docs/design_notes.md` Section 18 (root cause: `dim_date` wasn't marked as a Date Table + KPI cards had no year filter). |
 
 **Dimension tables** (all Direct Lake, joined 1:many from fact table):
 

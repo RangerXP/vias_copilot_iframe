@@ -105,6 +105,7 @@ All 10 tables created via `Load_Delta_Tables` notebook (20/20 Spark jobs succeed
 | Approval Rate | Approval | `0.0%` |
 | Decline Rate | Approval | `0.0%` |
 | Spend YoY % | Time Intelligence | `0.0%` |
+| Spend YoY % (Latest Year) | Time Intelligence | `0.0%` |
 
 > ⏳ **Report not yet created.** Next: create report from this model → record Report ID.
 

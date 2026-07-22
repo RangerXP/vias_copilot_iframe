@@ -60,6 +60,14 @@ table fact_commercialspend
 		displayFolder: Time Intelligence
 		lineageTag: 4c099ecd-a1bd-4837-bb7f-e7442160ce3d
 
+	measure 'Spend YoY % (Latest Year)' =
+			VAR LatestYear = CALCULATE(MAX(dim_date[Year]), ALL(dim_date))
+			RETURN
+			    CALCULATE([Spend YoY %], dim_date[Year] = LatestYear)
+		formatString: 0.0%
+		displayFolder: Time Intelligence
+		lineageTag: 8d3f6a21-9c47-4e2a-b6f0-1a5c7d9e2b34
+
 	column TransactionId
 		dataType: int64
 		formatString: 0

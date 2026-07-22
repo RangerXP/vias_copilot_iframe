@@ -4,7 +4,7 @@
 **Prepared for:** Customer Implementation Team  
 **Pattern:** Host-App Filter Injection + FilterSession Context Grounding  
 **Tenant:** `MngEnvMCAP660444.onmicrosoft.com`  
-**Last updated:** 2026-07-22 (rev 3 — entitlement-based dynamic RLS live end-to-end; Direct Lake fixed-identity/SSO binding resolved; see Section 17 for current security posture)  
+**Last updated:** 2026-07-22 (rev 4 — `Spend YoY %` KPI card bug diagnosed and fixed, see Section 18; entitlement-based dynamic RLS live end-to-end; Direct Lake fixed-identity/SSO binding resolved; see Section 17 for current security posture)  
 **Redesign note:** Project scope updated 2026-07-21 from Pattern 1 (slicer-read context injection) to Pattern 2 (host-app filter injection via `setFilters()` + `Fact_FilterSession` grounding). See Section 4 for the updated context flow and Section 11 for the new data model.
 
 ---
@@ -954,4 +954,22 @@ The `Roles=` requirement itself is intrinsic to how App-Owns-Data RLS works for 
 | Secret hygiene | `CLIENT_SECRET` for `VISA-PBIE-EmbedService` | ✅ **Rotated 2026-07-22** after exposure in a chat attachment — post-rotation smoke test confirmed SP auth, embed token generation, RLS, and XMLA connectivity all unaffected |
 
 **Net assessment:** no unfiltered data-access fallback path exists once RLS roles are defined; the entitlement value is the single source of truth for filtering on both the embed and query surfaces; the SP has no standing broad access outside the fixed-identity connection's scope. Residual risk is operational (rotate the exposed secret) and defense-in-depth (make the fail-closed path an explicit rejection, and replace the unauthenticated `?user=` query param before production).
+
+---
+
+## 18. `Spend YoY %` measure fix (2026-07-22)
+
+**Symptom:** the "Spend YoY %" headline KPI cards (Spend Trends page, Executive Summary page) showed a value (~49.6%, seen on-screen as "46.9%") that didn't reconcile with the per-year trend table on the same page.
+
+**Root cause — two compounding bugs, both confirmed via direct XMLA DAX queries against the live model:**
+
+1. **`dim_date` was never marked as an official Date Table.** Confirmed via `EVALUATE` queries: filtering `dim_date` by the `Year` column (an integer column — what the per-year trend table visual groups on) caused `DATEADD(dim_date[Date], -1, YEAR)` and `SAMEPERIODLASTYEAR(dim_date[Date])` to both return **BLANK**, even though the exact same prior-year data exists and is reachable when filtering the `Date` column directly instead. This is the documented DAX requirement — time-intelligence functions need the table marked as a Date table for them to reliably resolve a shifted period when filter context arrives via a non-date column of that table. Net effect: every row of the "Spend YoY %" column in the per-year trend table (`v_trnd_tbl`) was silently blank.
+2. **The two KPI cards had no year filter at all** (`"filterConfig":{"filters":[]}`), so they evaluated `Spend YoY %` at the grand-total level — across the full 3-year unfiltered date range (2024-01-01 to 2026-12-31) — which DATEADD interprets as "shift the entire multi-year window back one year" rather than "this year vs. last year." That produced a technically-real-but-meaningless ~49.6% figure with no corresponding bar/row in the trend visuals.
+
+**Fix:**
+- `dim_date.tmdl` — added `dataCategory: Time` at the table level (the TOM/TMDL property Power BI Desktop's "Mark as Date Table" persists). `dim_date` already satisfies the underlying requirements: 1,096 rows, 1,096 distinct dates, fully contiguous 2024-01-01 → 2026-12-31 (confirmed via `EVALUATE ROW("MinDate", MIN(...), "MaxDate", MAX(...), "RowCount", COUNTROWS(...), "DistinctDates", DISTINCTCOUNT(...))`).
+- `fact_commercialspend.tmdl` — added a new measure `Spend YoY % (Latest Year)` that self-scopes to the most recent year in the model (`CALCULATE([Spend YoY %], dim_date[Year] = LatestYear)`) so the headline KPI cards always show a specific, defensible year-over-year comparison instead of an unfiltered multi-year figure. The original `Spend YoY %` measure is unchanged and still drives the per-year trend table.
+- Report: `v_trnd02` (Spend Trends page) and `v_exec05` (Executive Summary page) card visuals now reference `Spend YoY % (Latest Year)` instead of `Spend YoY %`.
+
+**Status:** TMDL/PBIR changes committed to `branch`. Per the established workflow (Section 16e), TMDL changes require a manual **Fabric workspace → Source Control → "Update from Git"** click before they take effect on the live semantic model — pushing to GitHub alone does not sync them. After that click, re-run the per-year XMLA check (`dim_date[Year]`-filtered `DATEADD`) to confirm it's no longer blank, and re-check the two KPI cards on-screen against the trend table's latest-year row.
 

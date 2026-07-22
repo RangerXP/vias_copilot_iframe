@@ -49,6 +49,10 @@ Decline Rate =
     )
 
 // -- Time intelligence --------------------------------------------------------
+// NOTE: Dim_Date must be marked as an official Date Table (dataCategory: Time)
+// for DATEADD/SAMEPERIODLASTYEAR to resolve correctly whenever filter context
+// arrives via a non-date column of that table (e.g. Year) — see
+// docs/design_notes.md Section 18.
 
 Spend YoY % =
     DIVIDE(
@@ -56,3 +60,12 @@ Spend YoY % =
             - CALCULATE([Total Spend USD], DATEADD(Dim_Date[Date], -1, YEAR)),
         CALCULATE([Total Spend USD], DATEADD(Dim_Date[Date], -1, YEAR))
     )
+
+// Self-scoped to the most recent year in the model — use this (not the base
+// measure) for headline KPI cards that have no year filter/slicer applied, so
+// they always show a specific, defensible YoY figure instead of an unfiltered
+// multi-year comparison.
+Spend YoY % (Latest Year) =
+    VAR LatestYear = CALCULATE(MAX(Dim_Date[Year]), ALL(Dim_Date))
+    RETURN
+        CALCULATE([Spend YoY %], Dim_Date[Year] = LatestYear)

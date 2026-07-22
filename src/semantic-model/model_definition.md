@@ -154,3 +154,4 @@ See [measures.dax](./measures.dax) for full DAX definitions.
 | Decline Rate | Declined transactions / total transactions |
 | High Fraud Transactions | Transaction Count where FraudScore >= 70 |
 | Spend YoY % | Year-over-year spend growth percentage |
+| Spend YoY % (Latest Year) | Spend YoY % self-scoped to the most recent year — used by headline KPI cards with no year filter |
