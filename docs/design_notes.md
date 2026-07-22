@@ -933,7 +933,7 @@ The `Roles=` requirement itself is intrinsic to how App-Owns-Data RLS works for 
 | Sync new TMDL role to the live model without a manual portal click | ❌ **Not automatable** — `POST /v1/workspaces/{id}/git/status`/`updateFromGit` returned `400 GitCredentialsNotConfigured` for the SP caller; Fabric's Git integration API requires the calling identity's own registered Git credentials (a user-level PAT via "My Git Credentials"), which service principals don't have here. Same class of platform gap as Section 15's fixed-identity-connection bind — portal-only ("Update from Git" in Source Control). User performed this manually 2026-07-22. |
 | Validate PBIE-vs-XMLA row-set parity end-to-end | ✅ **Resolved 2026-07-22** — Section 15 Direct Lake fixed-identity/SSO binding gap closed (portal binding completed); embed tokens now return `200` with `effectiveIdentity` for both test entitlement values, and both load successfully in-browser |
 | Fail-closed hardening: reject/error when no entitlement resolves for a user, instead of silently falling back to the SP's full/unfiltered view | ⬜ Not yet implemented — recommended next step; currently an unresolved entitlement is indistinguishable from "no identity provided", which already fails via the platform's own RLS enforcement, but this should be made an explicit application-level rejection rather than relying solely on the platform behavior |
-| Rotate `CLIENT_SECRET` for `VISA-PBIE-EmbedService` | ⬜ **Recommended** — the secret was inadvertently exposed in a chat/attachment during development; rotate before any shared/production use |
+| Rotate `CLIENT_SECRET` for `VISA-PBIE-EmbedService` | ✅ **Done 2026-07-22** — secret rotated after exposure; post-rotation validation confirmed SP auth, embed token generation, RLS (both entitlement values), and XMLA connectivity all still working (byte-identical row sets to pre-rotation) |
 
 ---
 
@@ -951,7 +951,7 @@ The `Roles=` requirement itself is intrinsic to how App-Owns-Data RLS works for 
 | Data-plane binding | Direct Lake datasource bound to a fixed-identity cloud connection (service-principal auth, Entra ID SSO **disabled**) | ✅ Resolved 2026-07-22 (previously the long-standing `403` blocker) |
 | Fail-closed behavior | Requests with no identity fail once any RLS role exists on the model (platform-enforced) | ✅ Confirmed working, ⬜ not yet hardened as an explicit app-level check |
 | Frontend UPN transport | `?user=<upn>` query param, unauthenticated | ⚠️ Known open risk — acceptable for local dev/demo only, **not production-safe**; needs a real session/auth mechanism before any production use |
-| Secret hygiene | `CLIENT_SECRET` for `VISA-PBIE-EmbedService` | ⚠️ Exposed in a chat attachment during development — **rotation recommended**, not yet performed |
+| Secret hygiene | `CLIENT_SECRET` for `VISA-PBIE-EmbedService` | ✅ **Rotated 2026-07-22** after exposure in a chat attachment — post-rotation smoke test confirmed SP auth, embed token generation, RLS, and XMLA connectivity all unaffected |
 
 **Net assessment:** no unfiltered data-access fallback path exists once RLS roles are defined; the entitlement value is the single source of truth for filtering on both the embed and query surfaces; the SP has no standing broad access outside the fixed-identity connection's scope. Residual risk is operational (rotate the exposed secret) and defense-in-depth (make the fail-closed path an explicit rejection, and replace the unauthenticated `?user=` query param before production).
 
