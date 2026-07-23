@@ -3,6 +3,10 @@
 .env.*
 !.env.example
 
+# Per-tenant setup config (contains real Tenant/Subscription/capacity IDs)
+scripts/tenant.config.json
+!scripts/tenant.config.example.json
+
 # Node
 node_modules/
 npm-debug.log*

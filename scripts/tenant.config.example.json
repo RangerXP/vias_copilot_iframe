@@ -1,0 +1,8 @@
+{
+  "TenantId": "00000000-0000-0000-0000-000000000000",
+  "SubscriptionId": "00000000-0000-0000-0000-000000000000",
+  "WorkspaceName": "VISA Commercial Spend Analytics",
+  "CapacityId": "00000000-0000-0000-0000-000000000000",
+  "FoundryProjectEndpoint": "https://<resource>.services.ai.azure.com/api/projects/<project>",
+  "FoundryModelDeployment": "gpt-5.1"
+}

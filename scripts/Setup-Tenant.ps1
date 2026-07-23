@@ -1,9 +1,9 @@
 <#
 .SYNOPSIS
-    Interactive setup orchestrator — provisions the VISA Commercial Spend Analytics
-    demo stack (Fabric workspace + Lakehouse + semantic model + report + data agent,
-    a Microsoft Entra service principal, and an Azure AI Foundry agent) into YOUR OWN
-    tenant. Does not read or write anything in the original author's tenant.
+    Setup orchestrator — provisions the VISA Commercial Spend Analytics demo stack
+    (Fabric workspace + Lakehouse + semantic model + report + data agent, a Microsoft
+    Entra service principal, and an Azure AI Foundry agent) into YOUR OWN tenant.
+    Does not read or write anything in the original author's tenant.
 
 .DESCRIPTION
     Run this after completing docs/prerequisites.md. The script:
@@ -26,6 +26,24 @@
       8. Creates an Azure AI Foundry agent in your existing Foundry project.
       9. Writes a working .env file with everything collected above.
 
+    All tenant-specific configuration (Tenant ID, Subscription ID, workspace name,
+    Fabric capacity ID, Foundry project endpoint/model) can be supplied as parameters
+    or via -ConfigFile, so this script can be run non-interactively. Any value not
+    supplied either way falls back to an interactive prompt.
+
+.PARAMETER ConfigFile
+    Path to a JSON file with keys: TenantId, SubscriptionId, WorkspaceName,
+    CapacityId, FoundryProjectEndpoint, FoundryModelDeployment.
+    See scripts/tenant.config.example.json for the expected shape.
+
+.EXAMPLE
+    ./scripts/Setup-Tenant.ps1 -ConfigFile ./scripts/tenant.config.json
+
+.EXAMPLE
+    ./scripts/Setup-Tenant.ps1 -TenantId <guid> -SubscriptionId <guid> `
+        -WorkspaceName "VISA Demo" -CapacityId <guid> `
+        -FoundryProjectEndpoint https://<resource>.services.ai.azure.com/api/projects/<project>
+
 .NOTES
     Idempotent-ish: safe to re-run individual phases via -StartAt. Requires PowerShell 7+,
     Azure CLI (az), and the SqlServer module is NOT required by this script (only by
@@ -35,7 +53,19 @@
 [CmdletBinding()]
 param(
     [ValidateSet('All', 'Workspace', 'GitSync', 'DataLoad', 'ServicePrincipal', 'DataAgent', 'FoundryAgent', 'WriteEnv')]
-    [string]$StartAt = 'All'
+    [string]$StartAt = 'All',
+
+    [string]$ConfigFile,
+
+    [string]$TenantId,
+    [string]$SubscriptionId,
+    [string]$WorkspaceName,
+    [string]$CapacityId,
+    [string]$FoundryProjectEndpoint,
+    [string]$FoundryModelDeployment,
+
+    # Existing workspace ID to continue with when -StartAt is not 'All'/'Workspace'.
+    [string]$ExistingWorkspaceId
 )
 
 $ErrorActionPreference = 'Stop'
@@ -57,20 +87,37 @@ function Get-StorageToken {
     (az account get-access-token --resource "https://storage.azure.com" --query accessToken -o tsv)
 }
 
+function Get-ConfigValue {
+    param([string]$CliValue, $ConfigObject, [string]$ConfigKey, [string]$Prompt, [string]$Default)
+    if (-not [string]::IsNullOrWhiteSpace($CliValue)) { return $CliValue }
+    if ($ConfigObject -and $ConfigObject.PSObject.Properties.Name -contains $ConfigKey -and -not [string]::IsNullOrWhiteSpace($ConfigObject.$ConfigKey)) {
+        return $ConfigObject.$ConfigKey
+    }
+    $promptText = if ($Default) { "$Prompt [$Default]" } else { $Prompt }
+    $answer = Read-Host $promptText
+    if ([string]::IsNullOrWhiteSpace($answer) -and $Default) { return $Default }
+    return $answer
+}
+
 # ── Collect inputs ─────────────────────────────────────────────────────────────
 
 Write-Step "VISA Commercial Spend Analytics — tenant setup"
 Write-Info "This provisions a fresh copy of the demo into your own Microsoft Fabric / Azure tenant."
 Write-Info "See docs/prerequisites.md before continuing.`n"
 
-$TenantId = Read-Host "Microsoft Entra Tenant ID"
-$SubscriptionId = Read-Host "Azure Subscription ID (used for the app registration / az calls)"
-$WorkspaceName = Read-Host "New Fabric workspace name [VISA Commercial Spend Analytics]"
-if ([string]::IsNullOrWhiteSpace($WorkspaceName)) { $WorkspaceName = "VISA Commercial Spend Analytics" }
-$CapacityId = Read-Host "Fabric capacity ID to assign the new workspace to (GUID, from Fabric Admin Portal → Capacity settings)"
-$FoundryEndpoint = Read-Host "Existing Azure AI Foundry project endpoint (e.g. https://<resource>.services.ai.azure.com/api/projects/<project>)"
-$FoundryModel = Read-Host "Deployed Foundry model name [gpt-5.1]"
-if ([string]::IsNullOrWhiteSpace($FoundryModel)) { $FoundryModel = "gpt-5.1" }
+$config = $null
+if ($ConfigFile) {
+    if (-not (Test-Path $ConfigFile)) { throw "-ConfigFile '$ConfigFile' not found. See scripts/tenant.config.example.json." }
+    $config = Get-Content $ConfigFile -Raw | ConvertFrom-Json
+    Write-Info "Loaded config from $ConfigFile"
+}
+
+$TenantId = Get-ConfigValue -CliValue $TenantId -ConfigObject $config -ConfigKey 'TenantId' -Prompt "Microsoft Entra Tenant ID"
+$SubscriptionId = Get-ConfigValue -CliValue $SubscriptionId -ConfigObject $config -ConfigKey 'SubscriptionId' -Prompt "Azure Subscription ID (used for the app registration / az calls)"
+$WorkspaceName = Get-ConfigValue -CliValue $WorkspaceName -ConfigObject $config -ConfigKey 'WorkspaceName' -Prompt "New Fabric workspace name" -Default "VISA Commercial Spend Analytics"
+$CapacityId = Get-ConfigValue -CliValue $CapacityId -ConfigObject $config -ConfigKey 'CapacityId' -Prompt "Fabric capacity ID to assign the new workspace to (GUID, from Fabric Admin Portal -> Capacity settings)"
+$FoundryEndpoint = Get-ConfigValue -CliValue $FoundryProjectEndpoint -ConfigObject $config -ConfigKey 'FoundryProjectEndpoint' -Prompt "Existing Azure AI Foundry project endpoint (e.g. https://<resource>.services.ai.azure.com/api/projects/<project>)"
+$FoundryModel = Get-ConfigValue -CliValue $FoundryModelDeployment -ConfigObject $config -ConfigKey 'FoundryModelDeployment' -Prompt "Deployed Foundry model name" -Default "gpt-5.1"
 
 # ── Phase: az login / context ──────────────────────────────────────────────────
 
@@ -97,7 +144,7 @@ if ($StartAt -in 'All', 'Workspace') {
     Write-Ok "Workspace created: $WorkspaceId"
 }
 else {
-    $WorkspaceId = Read-Host "Existing Workspace ID to continue with"
+    $WorkspaceId = Get-ConfigValue -CliValue $ExistingWorkspaceId -ConfigObject $config -ConfigKey 'ExistingWorkspaceId' -Prompt "Existing Workspace ID to continue with"
 }
 
 # ── Phase: Git Integration (manual-assisted) ───────────────────────────────────

@@ -51,6 +51,28 @@ in place in your tenant.
 - Your existing Azure AI Foundry **project endpoint** and **model deployment name**
 - Confirmation that Fabric Git integration is enabled and that you'll complete the one manual "Update from Git" click after the workspace is connected (this step has no service-principal-callable API — see `docs/design_notes.md`)
 
+## Running setup
+
+`scripts/Setup-Tenant.ps1` collects the values above either interactively, as
+named parameters, or from a config file — so it can be run unattended once
+you know the values for your tenant.
+
+```powershell
+# Interactive (prompts for anything not already supplied)
+./scripts/Setup-Tenant.ps1
+
+# Config file (copy scripts/tenant.config.example.json -> scripts/tenant.config.json and fill it in)
+./scripts/Setup-Tenant.ps1 -ConfigFile ./scripts/tenant.config.json
+
+# Named parameters
+./scripts/Setup-Tenant.ps1 -TenantId <guid> -SubscriptionId <guid> `
+    -WorkspaceName "VISA Demo" -CapacityId <guid> `
+    -FoundryProjectEndpoint https://<resource>.services.ai.azure.com/api/projects/<project>
+```
+
+`scripts/tenant.config.json` is gitignored (it contains your tenant/subscription
+IDs) — only `scripts/tenant.config.example.json` is tracked in the repo.
+
 ## What it does NOT do
 
 - Does not provision Fabric capacity, Azure AI Foundry resources/projects, or Key Vaults — bring your own.
