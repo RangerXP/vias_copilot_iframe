@@ -1,0 +1,5 @@
+"ApprovalStatusKey","ApprovalStatus","StatusDescription"
+"2","Declined","Authorization declined"
+"4","Pending","Pending capture"
+"3","Reversed","Authorization reversed"
+"1","Approved","Settled transaction"

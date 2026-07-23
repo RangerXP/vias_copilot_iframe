@@ -14,6 +14,18 @@ Thumbs.db
 # VS Code local settings
 .vscode/settings.json
 
-# Synthetic / real data — never commit CSV files
+# Data — block all CSVs by default (never commit real transaction data),
+# but explicitly allow the 10 synthetic demo dataset files so the repo is
+# self-contained for a fresh install (see data/README.txt).
 data/*.csv
+!data/Dim_Date.csv
+!data/Dim_Client.csv
+!data/Dim_Country.csv
+!data/Dim_Product.csv
+!data/Dim_Segment.csv
+!data/Dim_Merchant.csv
+!data/Dim_MCC.csv
+!data/Dim_ApprovalStatus.csv
+!data/Fact_CommercialSpend.csv
+!data/Fact_FilterSession.csv
 

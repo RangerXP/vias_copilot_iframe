@@ -90,7 +90,8 @@ async function main() {
     new DefaultAzureCredential()
   );
 
-  const agent = await client.agents.createAgent('gpt-5.1', {
+  const model = process.env.FOUNDRY_MODEL_DEPLOYMENT || 'gpt-5.1';
+  const agent = await client.agents.createAgent(model, {
     name: 'pbie-context-agent',
     instructions: SYSTEM_PROMPT,
     tools: [QUERY_TOOL]

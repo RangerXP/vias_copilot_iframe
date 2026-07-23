@@ -1,8 +1,11 @@
-# Create Fabric Data Agent against Commercial_Spend_Analytics semantic model
+# Create (or update) a Fabric Data Agent against a Commercial_Spend_Analytics semantic model.
+# Pass -ItemId to update an EXISTING Data Agent's datasource (e.g. one created by a
+# Fabric Git Integration sync) instead of creating a brand new item.
 param(
     [string]$WorkspaceId  = "349db6f1-5df6-4992-ba67-ebc4449fead5",
     [string]$SemanticModelId = "b7bc94fc-a087-4e71-9476-f128ba57cf3a",
-    [string]$AgentName    = "Commercial_Spend_Agent"
+    [string]$AgentName    = "Commercial_Spend_Agent",
+    [string]$ItemId
 )
 
 $ErrorActionPreference = "Stop"
@@ -63,22 +66,34 @@ $requestBody = @{
     definition  = @{ parts = $parts }
 } | ConvertTo-Json -Depth 10
 
-# --- POST to Fabric --------------------------------------------------------
+# --- POST (create) or updateDefinition (existing item) ---------------------
 
-Write-Host "Creating Data Agent '$AgentName'..." -ForegroundColor Cyan
-$uri = "https://api.fabric.microsoft.com/v1/workspaces/$WorkspaceId/items"
-
-try {
-    $response = Invoke-RestMethod -Uri $uri -Method POST -Headers $headers -Body $requestBody
-    Write-Host "SUCCESS" -ForegroundColor Green
-    Write-Host "  Agent ID  : $($response.id)"
-    Write-Host "  Name      : $($response.displayName)"
-    Write-Host "  Type      : $($response.type)"
-    Write-Host "  Workspace : $($response.workspaceId)"
-    $response | ConvertTo-Json -Depth 5
-} catch {
-    Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
-    if ($_.ErrorDetails.Message) {
-        Write-Host "DETAILS: $($_.ErrorDetails.Message)" -ForegroundColor Yellow
+if ($ItemId) {
+    Write-Host "Updating Data Agent '$AgentName' ($ItemId) datasource..." -ForegroundColor Cyan
+    $uri = "https://api.fabric.microsoft.com/v1/workspaces/$WorkspaceId/items/$ItemId/updateDefinition"
+    $updateBody = @{ definition = @{ parts = $parts } } | ConvertTo-Json -Depth 10
+    try {
+        Invoke-RestMethod -Uri $uri -Method POST -Headers $headers -Body $updateBody | Out-Null
+        Write-Host "SUCCESS — datasource re-pointed to workspace $WorkspaceId / model $SemanticModelId" -ForegroundColor Green
+    } catch {
+        Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+        if ($_.ErrorDetails.Message) { Write-Host "DETAILS: $($_.ErrorDetails.Message)" -ForegroundColor Yellow }
+    }
+} else {
+    Write-Host "Creating Data Agent '$AgentName'..." -ForegroundColor Cyan
+    $uri = "https://api.fabric.microsoft.com/v1/workspaces/$WorkspaceId/items"
+    try {
+        $response = Invoke-RestMethod -Uri $uri -Method POST -Headers $headers -Body $requestBody
+        Write-Host "SUCCESS" -ForegroundColor Green
+        Write-Host "  Agent ID  : $($response.id)"
+        Write-Host "  Name      : $($response.displayName)"
+        Write-Host "  Type      : $($response.type)"
+        Write-Host "  Workspace : $($response.workspaceId)"
+        $response | ConvertTo-Json -Depth 5
+    } catch {
+        Write-Host "ERROR: $($_.Exception.Message)" -ForegroundColor Red
+        if ($_.ErrorDetails.Message) {
+            Write-Host "DETAILS: $($_.ErrorDetails.Message)" -ForegroundColor Yellow
+        }
     }
 }
