@@ -3,6 +3,8 @@
   "SubscriptionId": "00000000-0000-0000-0000-000000000000",
   "WorkspaceName": "VISA Commercial Spend Analytics",
   "CapacityId": "00000000-0000-0000-0000-000000000000",
-  "FoundryProjectEndpoint": "https://<resource>.services.ai.azure.com/api/projects/<project>",
-  "FoundryModelDeployment": "gpt-5.1"
+  "FoundryProjectEndpoint": "",
+  "FoundryModelDeployment": "gpt-5.1",
+  "FoundryResourceGroup": "",
+  "_comment": "Leave FoundryProjectEndpoint empty to have Setup-Tenant.ps1 create a brand new Foundry account/project/model deployment for you (named after WorkspaceName, in FoundryResourceGroup / -FoundryRegion). Set it to an existing project endpoint to reuse one instead."
 }

@@ -22,9 +22,10 @@ in place in your tenant.
 
 | Requirement | Notes |
 |---|---|
-| An existing Azure AI Foundry project | The setup script deploys a chat agent **into** an existing project — it does not create the parent Cognitive Services/Foundry resource or project for you. |
-| A deployed chat-capable model | e.g. `gpt-5.1`/`gpt-5-mini` (or another current-generation model available in your region — some older `gpt-4o` model versions are deprecated for new deployments). |
-| Rights to create agents in that project | `Azure AI User`/`Cognitive Services OpenAI Contributor`-equivalent role, or project owner/admin. |
+| An Azure AI Foundry project (optional) | If you already have one, pass its endpoint via `-FoundryProjectEndpoint` and the script reuses it. If you leave it unset, the script **creates a brand new Foundry account + project + model deployment** for you (named after your workspace name) — no pre-existing project required. |
+| Rights to create Cognitive Services resources (if letting the script create one) | "Cognitive Services Contributor" or subscription Contributor/Owner, plus rights to create a resource group. |
+| A deployed chat-capable model | e.g. `gpt-5.1`/`gpt-5-mini` — either already deployed in your existing project, or left to the script to attempt deploying automatically (model/version/quota availability varies by region, so this step may require a manual deployment via the portal if it fails). |
+| Rights to create agents in the project | Requires the Cognitive Services **data-plane** role "Foundry User" (or equivalent) on the project — separate from ARM control-plane rights. If the script creates the project, it grants this role to you automatically; if reusing an existing project, ask the project owner to grant it. Data-plane RBAC can take several minutes to propagate — the script retries automatically. |
 
 ## 3. Microsoft Entra ID
 
