@@ -64,10 +64,6 @@ DATASET_ID=b7bc94fc-a087-4e71-9476-f128ba57cf3a
 AGENT_ID=d2042f7c-989f-47d2-a3b4-92603f3e55ab
 LAKEHOUSE_ID=1aa73044-f85f-4843-b3e5-588cab4c0499
 
-# Foundry (Sprint 4+)
-FOUNDRY_PROJECT_ENDPOINT=<foundry-project-endpoint>
-FOUNDRY_AGENT_ID=<foundry-agent-id>
-
 # Server
 PORT=3000
 ```
@@ -90,8 +86,7 @@ pbie-context-agent/
 │   └── services/
 │       ├── pbiClient.js      ← Power BI REST API wrapper
 │       ├── contextService.js ← PBIE → business context translation
-│       ├── fabricAgent.js    ← Fabric Data Agent client
-│       └── foundryAgent.js   ← Azure AI Foundry client
+│       └── fabricAgent.js    ← Fabric Data Agent client (called directly from chat.js)
 │
 ├── frontend/
 │   ├── index.html            ← Iframe host shell

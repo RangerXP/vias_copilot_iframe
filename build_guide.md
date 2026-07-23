@@ -5,7 +5,7 @@
 
 Build an AI assistant that can answer questions about the specific report state currently displayed within a Power BI Embedded (App-Owns-Data) solution.
 
-The assistant does not interact directly with the report iframe. Instead, the hosting application captures the active report context and injects that context into an Azure AI Foundry agent which queries the same semantic model powering the embedded analytics experience.
+The assistant does not interact directly with the report iframe. Instead, the hosting application captures the active report context and injects that context into the chat backend's query to the Fabric Data Agent, which queries the same semantic model powering the embedded analytics experience.
 
 The resulting architecture provides a Copilot-like user experience while remaining compatible with Power BI Embedded architectures where native Copilot capabilities are unavailable.
 
@@ -40,7 +40,7 @@ PBIE Portal
  └─ Context Service
          │
          ▼
-Azure AI Foundry Agent
+Fabric Data Agent (chat backend query layer)
          │
          ▼
 Power BI Semantic Model
@@ -50,7 +50,7 @@ The Portal is the source of truth for report state.
 
 The Semantic Model is the source of truth for business answers.
 
-The Foundry Agent is responsible for reasoning.
+The chat backend's query layer is responsible for reasoning.
 
 ---
 
@@ -67,7 +67,7 @@ pbie-context-agent/
 ├── backend/
 │   ├── api/
 │   ├── context-service/
-│   └── foundry-agent/
+│   └── fabric-agent/
 │
 ├── semantic/
 │   ├── dax/
@@ -159,9 +159,9 @@ Output should be business-friendly.
 
 ## Phase 3 Deliverable
 
-### Foundry Agent Integration
+### Chat Backend Integration
 
-Build a Foundry Agent that accepts:
+Build a chat route that accepts:
 
 ```json
 {
@@ -174,7 +174,7 @@ Build a Foundry Agent that accepts:
 }
 ```
 
-Prompt template:
+Query template:
 
 ```text
 The user is viewing:
@@ -191,7 +191,7 @@ Why are declines increasing?
 
 At this phase we are validating:
 
-- Prompt grounding
+- Query grounding
 - Context injection
 - User experience
 
@@ -203,7 +203,7 @@ No advanced DAX generation required.
 
 ### Semantic Model Query Layer
 
-Replace simple agent reasoning with semantic-model-backed answers.
+Replace simple query-layer reasoning with semantic-model-backed answers.
 
 Workflow:
 
@@ -213,7 +213,7 @@ Question
 Context
         │
         ▼
-Agent
+Chat Backend
         │
         ▼
 Generate Query
@@ -267,18 +267,17 @@ becomes:
 Merchant
 ```
 
-This improves AI answer quality by ensuring the Foundry agent receives business-readable context rather than raw report metadata alone.
+This improves AI answer quality by ensuring the chat backend's query to the Fabric Data Agent receives business-readable context rather than raw report metadata alone.
 
 ---
 
-### 3. Foundry Agent
+### 3. Chat Backend Query Layer
 
 Responsibilities:
 
-- Conversation memory
-- Prompt orchestration
 - Context injection
-- Tool calling
+- Query construction
+- DAX query shape mapping
 
 Not responsible for:
 
@@ -328,9 +327,9 @@ Prove the portal can capture an accurate representation of the current embedded 
 
 Normalize raw PBIE state into business-friendly metadata that can be consumed by the agent.
 
-### Sprint 3: Foundry Agent to Context-Aware Responses
+### Sprint 3: Chat Backend to Context-Aware Responses
 
-Send user questions plus report state into the Foundry agent and validate that responses are grounded in the current report context.
+Send user questions plus report state into the chat backend's query layer and validate that responses are grounded in the current report context.
 
 ### Sprint 4: Semantic Model Query Tool to Production Answering
 
@@ -351,7 +350,7 @@ PBIE
 +
 Context Service
 +
-Foundry Agent
+Chat Backend Query Layer
 +
 Semantic Model
 +
@@ -372,6 +371,6 @@ without requiring native Copilot support inside the Power BI Embedded experience
 
 Pattern 1 should be positioned as a compatibility architecture for App-Owns-Data embedded analytics scenarios where native Copilot in Power BI is not available inside the PBIE iframe.
 
-The framework does not attempt to modify or extend the embedded report runtime. Instead, it uses the hosting application as the orchestration boundary. The host application captures report state, normalizes it, and sends it to an external Azure AI Foundry agent that queries the same governed semantic model used by the embedded report.
+The framework does not attempt to modify or extend the embedded report runtime. Instead, it uses the hosting application as the orchestration boundary. The host application captures report state, normalizes it, and sends it to the chat backend, which queries the same governed semantic model used by the embedded report via the Fabric Data Agent.
 
-This keeps PBIE responsible for visualization, the semantic model responsible for business logic, and Foundry responsible for conversational reasoning.
+This keeps PBIE responsible for visualization, the semantic model responsible for business logic, and the chat backend responsible for conversational reasoning.

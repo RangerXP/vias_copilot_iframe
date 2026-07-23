@@ -13,7 +13,7 @@
 
 > "Power BI Embedded in App-Owns-Data mode doesn't support native Copilot.  
 > But the host application knows everything about what the user is seeing.  
-> We use that knowledge to inject context into an Azure AI Foundry Agent backed by the same semantic model.  
+> We use that knowledge to query a Fabric Data Agent directly, grounded in the same semantic model.  
 > The result looks and feels like Copilot — without touching the PBIE runtime."
 
 ---
@@ -23,7 +23,7 @@
 Before the demo, ensure:
 
 - [ ] Local PBIE server running: `npm run dev` (or `node server/index.js`) → `http://localhost:3000`
-- [ ] `.env` has valid `CLIENT_ID`/`CLIENT_SECRET`, `WORKSPACE_ID`, `REPORT_ID`, `DATASET_ID`, `FOUNDRY_PROJECT_ENDPOINT`, `FOUNDRY_AGENT_ID`
+- [ ] `.env` has valid `CLIENT_ID`/`CLIENT_SECRET`, `WORKSPACE_ID`, `REPORT_ID`, `DATASET_ID`
 - [ ] Report **Commercial_Spend_Analytics** (Direct Lake, 250,000 transactions, 7 pages) loaded in iframe
 - [ ] Page: **Overview** or **Risk & Approval** active
 - [ ] Chat panel visible alongside the report
@@ -102,9 +102,8 @@ Before the demo, ensure:
 
 **Talking Point:**
 > "The context updates automatically as the user moves through the report.  
-> There's no manual context refresh — the frontend reads report state on every send,  
-> and the backend keeps conversation memory per session, so follow-up questions  
-> like 'what was that number again?' work without re-asking."
+> There's no manual context refresh \u2014 the frontend reads report state on every send  
+> and passes it alongside the question."
 
 ---
 
@@ -159,9 +158,9 @@ Before the demo, ensure:
 > "Here's the data flow: the frontend captured the active page and filters from the iframe  
 > using the official `powerbi-client` API, normalized them into business terms via `field_map.json`,  
 > and sent them to the backend alongside the question and a `conversationId`.  
-> The backend injected the context into an Azure AI Foundry Agent prompt.  
-> The agent called a `query_semantic_model` tool, which executes a DAX query directly against  
-> the Power BI semantic model via the `executeQueries` REST API — the same governed model behind the report.  
+> The backend built a query prompt with the injected context and called the Fabric Data Agent directly.  
+> It executes a DAX query against  
+> the Power BI semantic model via the XMLA endpoint (`Invoke-ASCmd` shim) — the same governed model behind the report.  
 > The answer came from that query result — not from the AI's general knowledge."
 
 ---
@@ -175,11 +174,10 @@ Before the demo, ensure:
 > It works in any App-Owns-Data embedded scenario.  
 >  
 > Today it supports 10 distinct query shapes — spend summary, trend, segment, merchant, country,  
-> product, merchant category, approval/decline, fraud risk, and industry — plus multi-turn memory  
-> so follow-up questions work naturally.  
+> product, merchant category, approval/decline, fraud risk, and industry.  
 >  
-> The North Star is adding RAG over knowledge sources, multi-visual context,  
-> and a broader DAX pattern library — but the foundation is working today, live, against real data."
+> The North Star is adding RAG over knowledge sources, multi-visual context, multi-turn conversation  
+> memory, and a broader DAX pattern library — but the foundation is working today, live, against real data."
 
 ---
 
@@ -187,14 +185,14 @@ Before the demo, ensure:
 
 | Question | Answer |
 |----------|--------|
-| Is this using Copilot for Power BI? | No — native Copilot doesn't run in PBIE. This is a custom Azure AI Foundry Agent backed by the same Fabric semantic model. |
-| What if the semantic model changes? | The agent's tool queries the live model on every call via `executeQueries` — no re-configuration needed for new data, only for new measures/columns. |
+| Is this using Copilot for Power BI? | No — native Copilot doesn't run in PBIE. This is a direct query to a Fabric Data Agent backed by the same Fabric semantic model. |
+| What if the semantic model changes? | Every call queries the live model directly via the XMLA endpoint — no re-configuration needed for new data, only for new measures/columns. |
 | How accurate is the context capture? | It uses the official `powerbi-client` API — the same state used by the report runtime. |
-| Can this be multi-tenant? | Yes — the embed token and agent are scoped per request. Multi-tenant is a configuration concern, not architectural. |
+| Can this be multi-tenant? | Yes — the embed token and each chat query are scoped per request. Multi-tenant is a configuration concern, not architectural. |
 | Is this production-ready? | The architecture is production-viable. This demo runs on a local dev server; cloud deployment is future scope. |
-| How is this different from a chatbot? | It's context-aware — it knows what page/filters the user has active without being told, and it remembers the conversation across turns. |
-| What about data security? | The agent never has direct model access outside its tool — the tool call executes a scoped DAX query against the semantic model using a governed identity, filtered by the same Row-Level Security as the embedded report (see Scene 5). |
-| Does it remember earlier questions? | Yes — each browser session gets a `conversationId` mapped to a Foundry thread server-side, so follow-ups like "what was that number again?" resolve correctly. |
+| How is this different from a chatbot? | It's context-aware — it knows what page/filters the user has active without being told. |
+| What about data security? | The chat backend never has direct model access outside the scoped query — it executes a scoped DAX query against the semantic model using a governed identity, filtered by the same Row-Level Security as the embedded report (see Scene 5). |
+| Does it remember earlier questions? | Not currently — each question is answered independently against the semantic model. Multi-turn memory is on the North Star roadmap (see Scene 7). |
 | How is customer data isolated in a multi-customer/multi-tenant embedded scenario? | Row-Level Security enforced at the semantic model layer via a single dynamic role driven by `CUSTOMDATA()` — each session's entitlement value scopes every visual and every agent query. See Scene 5 and `docs/design_notes.md` §16/§17 for the full design and comparison against static-role and `EffectiveUserName`-based alternatives. |
 | Does this scale beyond 2 test regions? | Yes — the dynamic role reads whatever entitlement value is passed in, so adding a new customer/segment is just a new value, not a new TMDL role or model redeploy. |
 | What happens if RLS isn't correctly configured for a user? | The request fails closed (Power BI rejects the request) rather than silently returning unfiltered/wrong data — there's no fallback path that leaks another customer's rows. |
@@ -207,7 +205,6 @@ Before the demo, ensure:
 - "How does spend break down by product?" → Visa Corporate ($21.76M), Visa Commercial ($17.01M), Visa Purchasing ($11.42M)
 - "Which industries have the most fraud risk?" → ranked by Fraud Exposure Score (Operations, T&E, Fleet highest)
 - "What is the total spend and transaction count?" → $74,812,278.37 across 250,000 transactions, $299.25 average ticket
-- "What was the dollar figure you told me a moment ago?" → tests multi-turn conversation memory
 
 ---
 
@@ -217,7 +214,5 @@ Before the demo, ensure:
 |---------|---------|
 | Chat returns error | Fall back to showing the context JSON in DevTools — explain the data flow manually |
 | Iframe doesn't load | Reload the page and re-sign-in via the login screen (`POST /api/session/login`) — `/api/embed-token` fails by design with `401` if there's no session, and with `403` if the signed-in customer has no resolvable entitlement (see Scene 5) |
-| Foundry agent timeout | Acknowledge, note it's a dev environment without prod capacity |
 | Incorrect answer | Acknowledge it as a calibration item — note `field_map.json` and the DAX pattern library (`semantic/dax/query_patterns.md`) are where accuracy improvements land |
-| Wrong number recalled on follow-up | Check server log for `reusing thread` vs `created thread` — confirms whether conversation memory picked up the right session |
 | Scene 5 (RLS) tab shows the wrong region or an error | Confirm you signed in as the intended demo customer on the login screen (session cookies are per-browser-profile, so use a private/incognito window for the second tab); as a last resort, run `.\scripts\compare_rls_mechanisms.ps1` to confirm RLS is healthy at the XMLA layer and narrow whether the issue is report-side or model-side |

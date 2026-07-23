@@ -2,10 +2,10 @@
  * VISA Commercial Spend Analytics — Context Prompt Builder
  *
  * Converts the current FilterContext state into a structured grounding payload
- * for the Foundry / Fabric Data Agent.
+ * for the Fabric Data Agent.
  *
- * The agent grounding payload contains:
- *   - systemContext: injected as the agent system prompt (or pre-turn instruction)
+ * The grounding payload contains:
+ *   - systemContext: injected as a pre-turn instruction
  *   - userTurn: the structured user message with [Report Context] + [User Question]
  *   - rawFilterContext: the full FilterContext for audit / Fact_FilterSession write
  */
@@ -21,7 +21,7 @@ export interface AgentGroundingPayload {
   systemContext: string;
   /**
    * Structured user turn: [Report Context] block + [User Question].
-   * This is the string sent as the user message to the Foundry Agent thread.
+   * This is the string sent as the user message in the chat backend's query.
    */
   userTurn: string;
   /** Full filter context — attach to POST /api/chat as rawContext. */

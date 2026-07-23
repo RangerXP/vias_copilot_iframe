@@ -24,7 +24,7 @@ VISA Partner Portal
   → PBIE setFilters()            ← applies state to embedded report
   → Direct Lake semantic model
   → persisted Fact_FilterSession ← same state written to Fabric Lakehouse
-  → Foundry / Fabric Data Agent  ← agent receives filter state as grounding context
+  → Fabric Data Agent             ← chat backend queries this directly, using filter state as grounding context
 ```
 
 This approach avoids Power BI native slicer interaction issues in embedded scenarios, gives the host app full control over filter state, and allows the agent to query `Fact_FilterSession` directly against the governed semantic model rather than relying on screenshot/DOM capture.
@@ -38,8 +38,7 @@ This approach avoids Power BI native slicer interaction issues in embedded scena
 A **native service principal** must be registered in the `MngEnvMCAP660444.onmicrosoft.com` tenant. This SP is used by the backend server to:
 
 1. Acquire embed tokens for the PBIE iframe (Power BI REST API)
-2. Query the Fabric Data Agent (Fabric REST API)
-3. Optionally, acquire tokens for Azure AI Foundry (if not using Managed Identity)
+2. Query the Fabric Data Agent (Fabric REST API / XMLA endpoint)
 
 ### Why a native SP is required (not a guest/cross-tenant identity)
 
@@ -101,13 +100,12 @@ The embed token `GenerateToken` API (multi-resource form) requires the SP to hav
 
 ### Token types in this solution
 
-The solution uses **three distinct token types** from three different auth flows. Understanding each is critical for a production implementation.
+The solution uses **two distinct token types** from two different auth flows. Understanding each is critical for a production implementation.
 
 | Token | Purpose | Acquired By | TTL | Refresh Strategy |
 |-------|---------|------------|-----|-----------------|
 | **Embed Token** | Authorizes the PBIE iframe to render the report | Backend via Power BI REST API | **1 hour** | Silent re-issue before expiry |
-| **Entra Access Token** | Backend calls to Power BI REST API and Fabric API | Backend via client credentials flow | 1 hour | Automatic via MSAL token cache |
-| **Foundry Token** | Backend calls to Azure AI Foundry Agent | Backend via DefaultAzureCredential or client credentials | 1 hour | Automatic via MSAL token cache |
+| **Entra Access Token** | Backend calls to Power BI REST API, Fabric API, and the XMLA endpoint | Backend via client credentials flow | 1 hour | Automatic via MSAL token cache |
 
 ---
 
@@ -303,9 +301,9 @@ await fetch('/api/session', {
 });
 ```
 
-### 4d. Passing Filter State to the Agent
+### 4d. Passing Filter State to the Chat Backend's Query
 
-When the user sends a chat message, the current `filterState` is serialized and injected as context in the Foundry Agent user turn:
+When the user sends a chat message, the current `filterState` is serialized and injected as context in the query prompt sent to the Fabric Data Agent:
 
 ```
 [Report Context]
@@ -318,7 +316,7 @@ Filters active:
 What is the approval rate trend for this client over the selected period?
 ```
 
-The agent also has access to `Fact_FilterSession` via the semantic model, enabling it to look up historical filter sessions for the same user.
+The query layer also has access to `Fact_FilterSession` via the semantic model, enabling it to look up historical filter sessions for the same user.
 
 ### 4e. SDK version
 
@@ -393,35 +391,19 @@ If the Data Agent feature is unavailable in this tenant, the fallback is **direc
 POST https://api.powerbi.com/v1.0/myorg/groups/{workspaceId}/datasets/{datasetId}/executeQueries
 ```
 
-This requires the backend to generate DAX — which is the Foundry Agent's responsibility in Sprint 4.
+This requires the backend to generate DAX — which is the chat backend's (`server/services/fabricAgent.js`) responsibility.
 
 ---
 
-## 6. Azure AI Foundry Agent
+## 6. Chat / AI Query Layer
 
-### Status
+### What it is
 
-> **Not yet provisioned.** Requires an Azure AI Foundry project in an accessible subscription.
+The `/api/chat` route calls the Fabric Data Agent query layer directly (`server/services/fabricAgent.js`) — no separate LLM orchestration/agent-hosting layer sits in between. Each question is mapped to one of several DAX query shapes (`semantic/dax/query_patterns.md`), executed against the semantic model, and the structured result is synthesized into a natural-language answer.
 
-### Recommended placement
-
-Create the Foundry project in the same subscription as the Fabric capacity or in the MSIE Azure subscription — wherever the customer's AI Services quota is available.
-
-### Auth for backend calls to Foundry
-
-```javascript
-import { AIProjectClient } from '@azure/ai-projects';
-import { DefaultAzureCredential } from '@azure/identity';
-
-const client = new AIProjectClient(
-  process.env.FOUNDRY_PROJECT_ENDPOINT,
-  new DefaultAzureCredential()
-);
-```
+> **Design note (2026-07-26):** An earlier design routed chat questions through a separate Azure AI Foundry agent (LLM orchestration + tool-calling) that in turn called this same Fabric Data Agent query layer. That layer was evaluated and removed — it added provisioning complexity (a Foundry account/project/model deployment, plus data-plane RBAC) without adding reasoning value beyond what the direct query layer already provides. The chat backend now calls the Fabric Data Agent layer directly.
 
 `DefaultAzureCredential` will use the service principal if `AZURE_CLIENT_ID`, `AZURE_CLIENT_SECRET`, and `AZURE_TENANT_ID` are set in the environment — same SP as the embed token flow.
-
-The SP needs **Azure AI Developer** role on the Foundry project resource.
 
 ---
 
@@ -470,7 +452,7 @@ The iframe is consumed by **external users** (guests) who are not native members
 | Boundary mechanism | How it works | Requires |
 |-------------------|-------------|----------|
 | **Effective identity in embed token** | SP generates an embed token with the user's UPN as `effectiveIdentity` — the Power BI engine enforces any RLS roles defined on the semantic model for that user | RLS roles defined on the model |
-| **Context injection layer** | `captureContext.js` reads only what is currently visible in the user's filtered iframe. The Foundry Agent receives only that slice of context — it cannot query data outside the user's current view | Pattern 1 implementation (done) |
+| **Context injection layer** | `captureContext.js` reads only what is currently visible in the user's filtered iframe. The chat backend's query to the Fabric Data Agent receives only that slice of context — it cannot query data outside the user's current view | Pattern 1 implementation (done) |
 
 Together these two mechanisms scope the AI agent's data access to exactly what the user can see, without requiring the external user's token to reach Fabric APIs.
 
@@ -487,9 +469,9 @@ If full user-delegated Fabric access is required in production (agent queries ru
 
 ### Current implementation (Path B — active)
 
-- SP makes all Fabric/Foundry API calls
+- SP makes all Fabric API calls
 - Embed token includes `effectiveIdentity` (user's UPN) when provided → RLS enforced at report layer
-- Context injection constrains agent queries to the user's visible report state
+- Context injection constrains the chat backend's query to the user's visible report state
 - User identity is resolved server-side from a session cookie (`req.session.customerId`, established via `POST /api/session/login`) — **resolved 2026-07-22, see §17d**; no client-supplied query param or body field is trusted for identity/entitlement anymore
 
 ---
@@ -640,10 +622,7 @@ The file `embedded_filter_context_schema.json` (included in the starter package)
 
 | Item | Owner | Status |
 |------|-------|--------|
-| Create Azure AI Foundry project | Dev team | Open |
-| Assign SP **Azure AI Developer** role on Foundry project | Dev team | Open |
-| Run `node scripts/provision-foundry-agent.js` to create agent | Dev team | Open (requires Foundry project) |
-| Add `FOUNDRY_AGENT_ID` to `.env` | Dev team | Open |
+| ~~Create Azure AI Foundry project + agent~~ | ~~Dev team~~ | **Removed 2026-07-26** — evaluated and backed out; the chat backend calls the Fabric Data Agent query layer directly instead (see Section 6) |
 | Install Node.js 20+ locally | Dev team | Open |
 
 ### Production Gate — External User Auth (Path A, not required for demo)
@@ -797,14 +776,14 @@ See `scripts/validate_sp_embed.ps1` for the full implementation including embed 
 | Embed tokens generated via application SPN | SP via client-credentials (`VISA-PBIE-EmbedService`) | ✅ |
 | Username + role passed in `identities`/effectiveIdentity for RLS enforcement | `effectiveIdentity` with UPN passed on `GenerateToken`, but `roles` array is currently empty — model has no RLS roles defined | ⚠️ Same shape, not yet exercised |
 | Custom filter UI drives report via `setFilters()` | Documented in Section 4 (Pattern 2), `report.setFilters()` | ✅ |
-| SPN + client credentials + `executeQueries` + `impersonatedUserName` for custom slicer/RLS scenarios — **Microsoft guidance moved VISA to XMLA** because this combination hit limitations under RLS | Foundry Agent DAX execution uses SPN + `executeQueries` (Section 5 fallback) — has not hit the same limitation only because the current model has **no RLS** | ❌ **Gap — see 15b** |
+| SPN + client credentials + `executeQueries` + `impersonatedUserName` for custom slicer/RLS scenarios — **Microsoft guidance moved VISA to XMLA** because this combination hit limitations under RLS | The chat backend's DAX execution uses SPN + `executeQueries` (Section 5 fallback) — has not hit the same limitation only because the current model has **no RLS** | ❌ **Gap — see 15b** |
 | Frontend token-transport architecture (Bearer header vs. session cookie vs. BFF) — not documented on VISA's side either | UPN passed as an unauthenticated `?user=<upn>` query param — self-flagged as not production-safe | ⚠️ Shared open risk, not a contradiction, but ours is the weaker option today |
 
 ### 15b. Gap — `executeQueries` + SPN + RLS is a known limitation
 
 VISA's own custom-slicer implementation used SPN + OAuth client credentials + Power BI `executeQueries` + `impersonatedUserName` against an RLS-enabled model, and **Microsoft guidance shifted them to the XMLA endpoint** because that combination hit limitations under RLS at scale.
 
-This POC's Foundry Agent query layer currently uses the identical combination (SPN client-credentials + `executeQueries`), but has never exercised RLS because `Commercial_Spend_Analytics` has no RLS roles defined. The moment RLS is introduced (see 15d below), we should expect to hit the same limitation VISA hit — so the query layer needs to move to XMLA **before** RLS is turned on, not after.
+This POC's chat backend query layer currently uses the identical combination (SPN client-credentials + `executeQueries`), but has never exercised RLS because `Commercial_Spend_Analytics` has no RLS roles defined. The moment RLS is introduced (see 15d below), we should expect to hit the same limitation VISA hit — so the query layer needs to move to XMLA **before** RLS is turned on, not after.
 
 ### 15c. Decision — migrate query layer from `executeQueries` to XMLA endpoint
 

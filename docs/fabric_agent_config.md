@@ -2,18 +2,18 @@
 
 ## Purpose
 
-This document covers how to configure the **Fabric Data Agent** as the semantic model query tool for the Pattern 1 Context Injection Agent.
+This document covers how to configure the **Fabric Data Agent** as the semantic model query tool for the Pattern 1 Context Injection chat backend.
 
 ---
 
 ## Role of the Fabric Data Agent
 
-In Pattern 1, the Fabric Data Agent sits between the **Foundry Agent** and the **Fabric Semantic Model**:
+In Pattern 1, the chat backend (`/api/chat`) calls the Fabric Data Agent directly, which sits between it and the **Fabric Semantic Model**:
 
 ```
-Foundry Agent
+/api/chat (Node.js Express route)
     │
-    │  tool call: query_semantic_model(question, context)
+    │  call: query_semantic_model(question, context)
     ▼
 Fabric Data Agent  ←── Natural language → DAX
     │
@@ -21,10 +21,10 @@ Fabric Data Agent  ←── Natural language → DAX
 Fabric Semantic Model  ←── Executes DAX
     │
     ▼
-Results → Foundry Agent → Natural language response
+Results → chat backend → Natural language response
 ```
 
-The Fabric Data Agent eliminates the need for the Foundry Agent to generate raw DAX — it translates natural language questions (augmented with filter context) into governed model queries.
+The Fabric Data Agent eliminates the need for the chat backend to generate raw DAX — it translates natural language questions (augmented with filter context) into governed model queries.
 
 ---
 
@@ -149,64 +149,23 @@ export async function queryFabricAgent(question, context = {}) {
 
 ---
 
-## Foundry Agent Tool Wiring — `server/services/foundryAgent.js`
+## Chat Route Wiring — `server/routes/chat.js`
 
 ```javascript
-import { AIProjectClient } from '@azure/ai-projects';
-import { DefaultAzureCredential } from '@azure/identity';
-import { queryFabricAgent } from './fabricAgent.js';
+import { queryFabricAgent } from '../services/fabricAgent.js';
 
-const client = new AIProjectClient(
-  process.env.FOUNDRY_PROJECT_ENDPOINT,
-  new DefaultAzureCredential()
-);
+router.post('/', async (req, res) => {
+  const { question, rawContext } = req.body;
+  const effectiveUserName = req.session.customerId;
+  const businessContext = rawContext ? normalizeContext(rawContext) : null;
 
-export async function sendToFoundryAgent(question, businessContext) {
-  const agentId = process.env.FOUNDRY_AGENT_ID;
-  const contextBlock = buildContextBlock(businessContext);
+  const answer = await queryFabricAgent({ question, context: businessContext, effectiveUserName });
 
-  const userMessage = `[Report Context]\n${contextBlock}\n\n[User Question]\n${question}`;
-
-  // Create a thread and send the message
-  const thread = await client.agents.threads.create();
-  await client.agents.messages.create(thread.id, 'user', userMessage);
-
-  // Run the agent
-  const run = await client.agents.runs.createAndPoll(thread.id, {
-    assistantId: agentId
-  });
-
-  // Handle tool calls (Fabric Data Agent)
-  if (run.status === 'requires_action') {
-    const toolOutputs = [];
-
-    for (const toolCall of run.requiredAction?.submitToolOutputs?.toolCalls || []) {
-      if (toolCall.function.name === 'query_semantic_model') {
-        const args = JSON.parse(toolCall.function.arguments);
-        const answer = await queryFabricAgent(args.question, args.context || businessContext);
-        toolOutputs.push({ tool_call_id: toolCall.id, output: answer });
-      }
-    }
-
-    await client.agents.runs.submitToolOutputsAndPoll(thread.id, run.id, toolOutputs);
-  }
-
-  // Get final response
-  const messages = await client.agents.messages.list(thread.id);
-  const assistantMsg = messages.data.find(m => m.role === 'assistant');
-  return assistantMsg?.content?.[0]?.text?.value || 'No response generated.';
-}
-
-function buildContextBlock(ctx) {
-  const lines = [];
-  if (ctx.page) lines.push(`Page: ${ctx.page}`);
-  for (const [k, v] of Object.entries(ctx.slicers || {})) lines.push(`${k}: ${v}`);
-  for (const [k, v] of Object.entries(ctx.filters || {})) {
-    lines.push(`${k}: ${Array.isArray(v) ? v.join(', ') : v}`);
-  }
-  return lines.join('\n') || '(No active filters)';
-}
+  res.json({ answer, conversationId });
+});
 ```
+
+`queryFabricAgent()` (in `server/services/fabricAgent.js`) maps the question to a DAX query shape, executes it via the XMLA endpoint (or `executeQueries` fallback), and synthesizes the structured result into a natural-language answer — no separate LLM orchestration/agent-hosting layer is involved.
 
 ---
 
@@ -231,7 +190,7 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 ## Testing the Integration
 
-### Direct test (before wiring Foundry)
+### Direct test (before wiring the chat route)
 
 ```bash
 curl -X POST http://localhost:3000/api/fabric-query \

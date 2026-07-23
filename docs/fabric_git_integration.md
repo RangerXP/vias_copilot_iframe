@@ -177,6 +177,4 @@ CLIENT_ID=<service-principal-client-id>
 CLIENT_SECRET=<service-principal-secret>
 FABRIC_AGENT_ENDPOINT=https://api.fabric.microsoft.com/v1/workspaces/<workspace-id>/dataagentruns
 FABRIC_AGENT_ID=<fabric-agent-id>
-FOUNDRY_PROJECT_ENDPOINT=<foundry-project-endpoint>
-FOUNDRY_AGENT_ID=<foundry-agent-id>
 ```

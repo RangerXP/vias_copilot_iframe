@@ -37,13 +37,12 @@ This document describes the full architecture for Pattern 1 — Context Injectio
 └─────────────────────────────────────────────────────────┼───────────┘
                                                           │
                         ┌─────────────────────────────────▼────────────┐
-                        │  Azure AI Foundry Agent                       │
+                        │  /api/chat (Node.js Express route)            │
                         │                                               │
-                        │  System prompt: inject context block          │
-                        │  Tool: query_semantic_model()                 │
-                        │  Memory: conversation history                 │
+                        │  Injects context block into query prompt      │
+                        │  Calls Fabric Data Agent directly              │
                         └──────────────────────┬────────────────────────┘
-                                               │ Tool call
+                                               │ Query call
                                                ▼
                         ┌──────────────────────────────────────────────┐
                         │  Fabric Data Agent                           │
@@ -86,15 +85,14 @@ This document describes the full architecture for Pattern 1 — Context Injectio
 |-----------|--------------|
 | `/api/embed-token` | Generates App-Owns-Data embed token using service principal |
 | `/api/context` | Receives and normalizes context from frontend |
-| `/api/chat` | Proxies request to Foundry Agent with context block injected |
+| `/api/chat` | Injects context block into the query prompt and calls the Fabric Data Agent directly |
 | Context Service | Translates PBIE field names to business names via `field_map.json` |
 
 ### AI Layer
 
 | Component | Responsibility |
 |-----------|--------------|
-| Azure AI Foundry Agent | Conversation memory, prompt orchestration, tool calling |
-| Fabric Data Agent | Natural language + DAX query execution against Fabric semantic model |
+| Fabric Data Agent | Natural language + DAX query execution against Fabric semantic model, called directly from `/api/chat` |
 
 ### Data Layer
 
@@ -116,12 +114,11 @@ This document describes the full architecture for Pattern 1 — Context Injectio
    → { question: "Why are declines increasing?", rawContext: { ... } }
 5. Context Service normalizes:
    → { Merchant: "Costco", Region: "North America", DateRange: "Last 90 Days" }
-6. Foundry Agent receives:
-   → system prompt with injected context block + user question
-7. Foundry Agent calls tool: query_semantic_model("decline trend for Costco last 90 days", context)
+6. `/api/chat` builds a query prompt with the injected context block + user question
+7. Backend calls the Fabric Data Agent directly: query_semantic_model("decline trend for Costco last 90 days", context)
 8. Fabric Data Agent:
    → translates to DAX → executes → returns results
-9. Foundry Agent composes natural language response
+9. Backend synthesizes the results into a natural language response
 10. Response rendered in chat panel
 ```
 
@@ -162,7 +159,6 @@ Semantic Model query execution
 | Server | `localhost:3000` (Node/Express) | Azure App Service or Container Apps |
 | Embed token | Generated from dev service principal | Generated from prod service principal |
 | Fabric model | Same Fabric workspace | Same Fabric workspace |
-| Foundry Agent | Dev Foundry project | Prod Foundry project |
 | CORS | Disabled / localhost only | Configured for portal domain |
 | Auth | Dev credentials in `.env` | Managed Identity |
 
@@ -173,8 +169,8 @@ Semantic Model query execution
 - Embed tokens are short-lived (1 hour); `tokenExpired` event handled in `embed.js` — refresh preserves `effectiveIdentity`
 - Service principal credentials stored in `.env` only — never committed to git (`.gitignore` enforced)
 - Fabric Data Agent access scoped to semantic model read-only
-- Context object sanitized before prompt injection (no raw user input in system prompt)
-- Foundry Agent does not have write access to any data source
+- Context object sanitized before query prompt injection (no raw user input passed unvalidated)
+- The chat backend does not have write access to any data source
 
 ---
 
@@ -187,9 +183,9 @@ Iframe consumers are **external (B2B guest) users**. Two paths are defined:
 The service principal makes all API calls. User data boundary is enforced at two levels:
 
 1. **`effectiveIdentity` in embed token** — SP generates an embed token with the user's UPN, causing the Power BI engine to enforce any RLS roles on the semantic model for that user
-2. **Context injection** — `captureContext.js` reads only what is visible in the user's filtered iframe view; the Foundry Agent is scoped to that context
+2. **Context injection** — `captureContext.js` reads only what is visible in the user's filtered iframe view; the chat backend's query to the Fabric Data Agent is scoped to that context
 
-No user token ever reaches the backend for Fabric/Foundry API calls.
+No user token ever reaches the backend for Fabric API calls.
 
 ### Path A — Production gate (not yet active)
 

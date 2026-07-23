@@ -18,23 +18,14 @@ in place in your tenant.
 | Fabric Git integration enabled | Tenant admin setting "Users can synchronize workspace items with Git repositories" must be ON (Fabric Admin Portal → Tenant settings). |
 | A Git credential (PAT or GitHub OAuth) you can register in "My Git Credentials" | Fabric's Git-sync REST endpoints (`git/connect`, `updateFromGit`) require a **user-delegated** credential — service principals cannot call them (see `docs/design_notes.md` for the underlying platform gap). Plan to complete the initial repo connect + "Update from Git" step as a signed-in user, not purely via script. |
 
-## 2. Azure AI Foundry
-
-| Requirement | Notes |
-|---|---|
-| An Azure AI Foundry project (optional) | If you already have one, pass its endpoint via `-FoundryProjectEndpoint` and the script reuses it. If you leave it unset, the script **creates a brand new Foundry account + project + model deployment** for you (named after your workspace name) — no pre-existing project required. |
-| Rights to create Cognitive Services resources (if letting the script create one) | "Cognitive Services Contributor" or subscription Contributor/Owner, plus rights to create a resource group. |
-| A deployed chat-capable model | e.g. `gpt-5.1`/`gpt-5-mini` — either already deployed in your existing project, or left to the script to attempt deploying automatically (model/version/quota availability varies by region, so this step may require a manual deployment via the portal if it fails). |
-| Rights to create agents in the project | Requires the Cognitive Services **data-plane** role "Foundry User" (or equivalent) on the project — separate from ARM control-plane rights. If the script creates the project, it grants this role to you automatically; if reusing an existing project, ask the project owner to grant it. Data-plane RBAC can take several minutes to propagate — the script retries automatically. |
-
-## 3. Microsoft Entra ID
+## 2. Microsoft Entra ID
 
 | Requirement | Notes |
 |---|---|
 | Rights to register an App Registration | The setup script creates a dedicated service principal (App-Owns-Data embed identity) in your tenant. Requires "Application Developer" role or higher. |
 | Rights to grant the SP a Fabric workspace role | Needed so the SP can generate embed tokens and query the model (Admin/Member on the new workspace). |
 
-## 4. Local tooling
+## 3. Local tooling
 
 | Requirement | Notes |
 |---|---|
@@ -49,7 +40,6 @@ in place in your tenant.
 - Azure **Subscription ID** (for the app registration / role assignment `az` calls)
 - Target **region** (for any resources it does create)
 - A **workspace name** for the new Fabric workspace
-- Your existing Azure AI Foundry **project endpoint** and **model deployment name**
 - Confirmation that Fabric Git integration is enabled and that you'll complete the one manual "Update from Git" click after the workspace is connected (this step has no service-principal-callable API — see `docs/design_notes.md`)
 
 ## Running setup
@@ -67,8 +57,7 @@ you know the values for your tenant.
 
 # Named parameters
 ./scripts/Setup-Tenant.ps1 -TenantId <guid> -SubscriptionId <guid> `
-    -WorkspaceName "VISA Demo" -CapacityId <guid> `
-    -FoundryProjectEndpoint https://<resource>.services.ai.azure.com/api/projects/<project>
+    -WorkspaceName "VISA Demo" -CapacityId <guid>
 ```
 
 `scripts/tenant.config.json` is gitignored (it contains your tenant/subscription
@@ -76,6 +65,6 @@ IDs) — only `scripts/tenant.config.example.json` is tracked in the repo.
 
 ## What it does NOT do
 
-- Does not provision Fabric capacity, Azure AI Foundry resources/projects, or Key Vaults — bring your own.
-- Does not reference the original author's tenant ID, workspace GUID, or Foundry project in any generated output.
+- Does not provision Fabric capacity or Key Vaults — bring your own.
+- Does not reference the original author's tenant ID or workspace GUID in any generated output.
 - Does not commit any secrets — the final `.env` is written locally and stays gitignored.

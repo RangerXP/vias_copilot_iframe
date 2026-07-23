@@ -7,8 +7,8 @@ This is the detailed implementation specification for **Pattern 1 — Context In
 It covers:
 - Context capture from the PBIE iframe
 - Context normalization (PBIE → business terms)
-- Prompt construction with injected context
-- Foundry Agent tool call flow through Fabric Data Agent
+- Query construction with injected context
+- Direct chat-backend call into the Fabric Data Agent
 
 ---
 
@@ -200,25 +200,25 @@ export function buildContextBlock(businessContext) {
 
 ---
 
-## Foundry Agent Prompt Template
+## Fabric Data Agent Query Construction
 
-### System Prompt
+### Query Guidance
 
 ```
-You are an embedded analytics assistant integrated into a Power BI Embedded portal.
+This is an embedded analytics assistant integrated into a Power BI Embedded portal.
 
-You have access to a semantic model query tool. Always use the tool for any data question.
-Never answer data questions from memory or general knowledge.
+Every question is answered by querying the connected Power BI semantic model —
+never from memory or general knowledge.
 
-When a user asks a question, you will receive the current state of the embedded report:
+Each request includes the current state of the embedded report:
 - Active page
 - Active filters
 - Active slicers
 
-Interpret the report state as the user's current data context.
-Respond in plain, business-friendly language appropriate for an analytics portal user.
-If the user asks to "explain this chart" or "summarize this view", use the context to 
-understand which page and filter combination is visible, then query accordingly.
+The report state is treated as the user's current data context. Responses use plain,
+business-friendly language appropriate for an analytics portal user. When the user asks
+to "explain this chart" or "summarize this view", the current page and filter
+combination scopes the query.
 ```
 
 ### User Turn Structure
@@ -234,28 +234,9 @@ Page: {{page}}
 
 ---
 
-## Foundry Agent Tool Definition
+## Fabric Data Agent Query Shape
 
-```json
-{
-  "name": "query_semantic_model",
-  "description": "Executes a natural language or DAX query against the connected Power BI semantic model via the Fabric Data Agent. Use for all data retrieval — metrics, rankings, trends, comparisons.",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "question": {
-        "type": "string",
-        "description": "The data question to answer. Include relevant context from the report state."
-      },
-      "context": {
-        "type": "object",
-        "description": "Key-value pairs of active filters and slicers from the report (e.g. { 'Merchant': 'Costco', 'Region': 'North America' })"
-      }
-    },
-    "required": ["question"]
-  }
-}
-```
+`queryFabricAgent({ question, context, effectiveUserName })` in `server/services/fabricAgent.js` maps the question to one of several DAX query shapes (`semantic/dax/query_patterns.md`) — metrics, rankings, trends, comparisons — using the context object (key-value pairs of active filters and slicers from the report, e.g. `{ 'Merchant': 'Costco', 'Region': 'North America' }`) to scope the query, executes it against the semantic model, and synthesizes the structured result into a natural-language answer.
 
 ---
 
@@ -279,16 +260,12 @@ Page: {{page}}
 ```javascript
 // 1. Normalize context
 const businessContext = normalizeContext(rawContext);
-const contextBlock = buildContextBlock(businessContext);
 
-// 2. Build user turn
-const userTurn = `[Report Context]\n${contextBlock}\n\n[User Question]\n${question}`;
+// 2. Query the Fabric Data Agent directly
+const answer = await queryFabricAgent({ question, context: businessContext, effectiveUserName });
 
-// 3. Send to Foundry Agent
-const response = await foundryAgent.sendMessage(userTurn);
-
-// 4. Return
-res.json({ answer: response.content });
+// 3. Return
+res.json({ answer, conversationId });
 ```
 
 ---

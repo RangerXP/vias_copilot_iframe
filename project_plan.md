@@ -6,7 +6,7 @@
 
 The objective is to build and demo a local PBIE server where:
 - An iframe renders a live report from a **Fabric semantic model**
-- A chat panel captures report state and sends it to a **Foundry Agent**
+- A chat panel captures report state and sends it to the chat backend
 - The **Fabric Data Agent** executes semantic queries grounded in the visible report context
 - Responses are returned in natural language to the chat panel
 
@@ -18,7 +18,7 @@ The objective is to build and demo a local PBIE server where:
 Phase 0: Model Discovery + Local Server Scaffold
 Phase 1: Iframe Render + Context Capture
 Phase 2: Fabric Data Agent Integration
-Phase 3: Foundry Agent + Context Injection (Pattern 1)
+Phase 3: Context Injection Chat Layer (Pattern 1)
 Phase 4: Semantic Query Layer (Production Pattern)
 Phase 5: Demo Build
 ```
@@ -62,7 +62,7 @@ Phase 5: Demo Build
 - [x] Captures: `reportId`, `page`, `filters`, `slicers`, `selections`
 - [x] Serializes to clean JSON
 - [x] POST to `server/routes/context.js` endpoint (confirmed 200 round-trip)
-- [x] Context flows through to `/api/chat` as `rawContext` → normalized → injected into Foundry agent user turn — confirmed via `[Report Context]` block in `chat.js`
+- [x] Context flows through to `/api/chat` as `rawContext` → normalized → injected into the chat backend's query to the Fabric Data Agent — confirmed via `[Report Context]` block in `chat.js`
 
 **Output shape:**
 ```json
@@ -99,36 +99,33 @@ Phase 5: Demo Build
 
 ---
 
-## Sprint 4 — Foundry Agent + Context Injection (Pattern 1 Core)
+## Sprint 4 — Context Injection Chat Layer (Pattern 1 Core)
 
-**Goal:** Build the Pattern 1 Foundry Agent that accepts context + question and returns grounded answers via the Fabric Data Agent as a tool.
+**Goal:** Wire `/api/chat` to accept context + question and return grounded answers directly from the Fabric Data Agent query layer — no separate LLM orchestration/agent-hosting layer in between.
 
 **Pattern source:** build_guide.md — Phase 3 Deliverable
 
 **Deliverables:**
-- [x] Azure AI Foundry Agent created — `pbie-context-agent` (`asst_0VlPo0xeZeprd75h0Jve0a5l`), model `gpt-5.1`, project `visa-pbie-context` (West US 3 — `visa-pbie-context-rsc`)
-- [x] Tool: `query_semantic_model(question, context)` — implemented in `server/services/foundryAgent.js` with tool call dispatch loop
-- [x] `server/services/foundryAgent.js` — Foundry SDK (`@azure/ai-agents` v1.x sub-client API: `agents.threads`, `agents.messages`, `agents.runs`) with `requires_action` polling and tool routing to `fabricAgent.js`
-- [x] Chat panel wired: user message → context capture → Foundry Agent → response
-- [x] Agent synthesizes natural-language answers from tool JSON (system prompt enforces synthesis; client-side fallback synthesizer in `foundryAgent.js` as a safety net)
-- [ ] `docs/pattern1_iframe_injection.md` — full injection flow documented (update after live validation)
+- [x] `server/routes/chat.js` — `POST /api/chat` route: normalizes `rawContext`, calls `queryFabricAgent({ question, context, effectiveUserName })` directly
+- [x] `server/services/fabricAgent.js` — maps the question to one of several DAX query shapes (`semantic/dax/query_patterns.md`), executes it, and formats the structured result into a natural-language answer
+- [x] Chat panel wired: user message → context capture → chat backend → response
+- [x] `docs/pattern1_iframe_injection.md` — full injection flow documented (update after live validation)
 
-**Known SDK gotcha (resolved):** `@azure/ai-agents` v1.x replaced the old flat `createThread/createMessage/createRun/listMessages` methods with sub-clients (`agents.threads.create()`, `agents.messages.create(threadId, role, content)`, `agents.runs.create(threadId, assistantId)`, `agents.runs.submitToolOutputs(threadId, runId, toolOutputsArray)`). Also: `USE_FOUNDRY` in `chat.js` must be evaluated inside the request handler, not at module load, since ESM imports are hoisted before `dotenv.config()` runs.
+**Design note (2026-07-26):** An earlier design in this sprint evaluated routing chat questions through a separate Azure AI Foundry agent (LLM orchestration + tool-calling) that would call this same Fabric Data Agent query layer as a tool. That layer was built, tested, and then backed out — it added Azure resource provisioning complexity (a Foundry account/project/model deployment, plus data-plane RBAC) without adding reasoning value beyond what the direct DAX-shape query layer already provides. The chat backend calls `queryFabricAgent()` directly instead.
 
-**System Prompt Template:**
+**Query Construction Template:**
 ```
-You are an embedded analytics assistant for a Power BI Embedded report.
-
-The user is currently viewing:
+[Report Context]
 {{context_block}}
 
-Use the semantic model query tool to answer data questions.
-Respond in plain language aligned with the visible report state.
-Do not answer from memory. Always query the model for data values.
+[User Question]
+{{question}}
 ```
 
+The question is matched against keyword-routed DAX query shapes (summary, trend, segment, merchant, country, product, MCC, approval, fraud, industry) and the result is formatted into a plain-language response aligned with the visible report state.
+
 **Validation:**
-> User selects Merchant = Costco in slicer. Types "Why are declines increasing?" Context injected. Agent responds with model-grounded answer about Costco.
+> User selects Merchant = Costco in slicer. Types "Why are declines increasing?" Context injected. Chat backend responds with model-grounded answer about Costco.
 
 ---
 
@@ -142,11 +139,11 @@ Do not answer from memory. Always query the model for data values.
 - [x] `semantic/dax/` — example DAX patterns for agent tool calls — 10 shapes documented in [semantic/dax/query_patterns.md](semantic/dax/query_patterns.md) (summary, trend, segment, merchant, country, product, MCC, approval, fraud, industry), backed by matching keyword-routed query templates in `server/services/fabricAgent.js`
 - [x] `semantic/metadata/field_map.json` — PBIE field name → business name mapping — rewritten 2026-07-22 against the confirmed TMDL schema (was stale/mismatched placeholder data referencing fields that don't exist in the model)
 - [x] Context service middleware: normalize PBIE state to business-friendly context — `server/services/contextService.js` (`normalizeContext`/`buildContextBlock`), pre-existing and confirmed working
-- [x] Multi-page context (page transitions preserved in conversation) — implemented 2026-07-22: `frontend/chat.js` mints a `conversationId` (persisted in `sessionStorage` for the browser tab) and sends it with every `/api/chat` request; `foundryAgent.js` maps `conversationId → Foundry thread ID` (in-memory, capped at 500 conversations) and reuses the thread instead of starting a new one, so page transitions and follow-up questions retain full conversation history.
+- [x] `conversationId` generated client-side (`frontend/chat.js`, persisted in `sessionStorage` for the browser tab) and sent with every `/api/chat` request for continuity/telemetry — the backend does not currently use it to retain multi-turn conversation memory (`queryFabricAgent()` is stateless per request)
 
 **Validation:**
-> Ask multi-turn questions across two pages. Context is coherent across turns. Field names are human-readable in all responses.
-> **STATUS: PASSED** — validated 2026-07-22: merchant/country/product/MCC/approval/fraud breakdown questions all return correct, human-readable, natural-language answers end-to-end (see examples below). Multi-turn memory confirmed: asked "What is the total spend?" (turn 1, $74,812,278.37), then "What was the dollar figure you told me a moment ago?" (turn 2, same `conversationId`) → agent correctly recalled "$74,812,278.37" from thread history without re-querying. A fresh request with no `conversationId` correctly started an isolated new thread (no cross-conversation leakage).
+> Ask questions across two pages. Context is coherent per-request. Field names are human-readable in all responses.
+> **STATUS: PASSED** — validated 2026-07-22: merchant/country/product/MCC/approval/fraud breakdown questions all return correct, human-readable, natural-language answers end-to-end (see examples below).
 >
 > Example validated Q&A:
 > - "Which merchants have the highest spend?" → ranked top-10 list with merchant names and dollar amounts
@@ -174,10 +171,9 @@ Do not answer from memory. Always query the model for data values.
 2. "What is the approval rate versus decline rate?" — 94.9% / 3.5% (235,081 / 8,646 transactions)
 3. "Which merchants have the highest spend?" — Microsoft Merchant 0198 ($232,963), ExxonMobil Merchant 0898 ($174,976), Hilton Merchant 0714 ($161,619)
 4. "How does spend break down by country?" — United States ($18,529,767), Canada ($5,358,022), UK ($4,546,435)
-5. "What was the dollar figure you told me a moment ago?" — tests multi-turn conversation memory (thread reuse)
 
 **Validation:**
-> Full demo script walked through against the live server + Foundry agent 2026-07-21/22 — every scripted question returns a grounded, accurate answer from the real semantic model. No fictional data (e.g. Costco/Target merchants, "Customer Risk" page) remains in the script.
+> Full demo script walked through against the live server 2026-07-21/22 — every scripted question returns a grounded, accurate answer from the real semantic model. No fictional data (e.g. Costco/Target merchants, "Customer Risk" page) remains in the script.
 > **STATUS: PASSED — Sprint 6 complete.**
 
 ---
@@ -240,7 +236,7 @@ Do not answer from memory. Always query the model for data values.
 | Context capture | `powerbi-client` API (`getFilters`, `getPages`, `getSlicers`) |
 | Semantic model | Microsoft Fabric — Direct Lake semantic model (`Commercial_Spend_Analytics`) |
 | Model access | Power BI `executeQueries` REST API (direct DAX execution — pivoted from Fabric Data Agent, which has no public query endpoint) |
-| AI reasoning | Azure AI Foundry Agent (`gpt-5.1`), with `query_semantic_model` tool + multi-turn conversation memory |
+| AI reasoning | Chat backend (`server/services/fabricAgent.js`) — keyword-routed DAX query shapes, no separate LLM orchestration layer |
 | Auth (embed) | Power BI REST API — App-Owns-Data token |
 | Auth (Fabric) | Entra ID service principal or user delegation |
 
@@ -253,7 +249,7 @@ Do not answer from memory. Always query the model for data values.
 | 1 | Which Fabric workspace/semantic model to target? | Sean | **RESOLVED — VISA workspace, Visa Slicer Demo v2** |
 | 2 | Is a Fabric Data Agent already provisioned for this model? | Sean | Open |
 | 3 | App-Owns-Data service principal created in tenant? | Sean | Open — register in MngEnvMCAP660444 |
-| 4 | Azure AI Foundry project available or needs creation? | Sean | Open |
+| 4 | ~~Azure AI Foundry project available or needs creation?~~ | Sean | **Removed 2026-07-26** — Foundry agent evaluated and backed out; chat backend calls the Fabric Data Agent query layer directly |
 | 5 | Is Premium Per User or embedded capacity available for embed tokens? | Sean | **RESOLVED — dedicated capacity cb113ec9** |
 | 6 | Target demo report identified (specific report ID)? | Sean | **RESOLVED — `Commercial_Spend_Analytics` report (`e833a03b`), 7 pages, live embed target** |
 

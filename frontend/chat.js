@@ -5,9 +5,9 @@ const chatInput = document.getElementById('chat-input');
 const sendBtn = document.getElementById('send-btn');
 const chatHistory = document.getElementById('chat-history');
 
-// Sprint 5: persist the conversationId for the browser tab session so follow-up
-// questions and page transitions share Foundry thread history instead of each
-// request starting a brand-new conversation.
+// The conversationId is persisted for the browser tab session and echoed back to
+// the server on each request (kept for continuity, not currently used for
+// multi-turn memory on the backend).
 const CONVERSATION_ID_KEY = 'pbie-conversation-id';
 
 function getConversationId() {

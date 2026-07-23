@@ -285,7 +285,7 @@ function normalizeRows(rows) {
  * Uses the service principal (CLIENT_ID/CLIENT_SECRET) which has Admin access to the workspace.
  *
  * @param {{ question: string, context?: object, daxQuery?: string, effectiveUserName?: string, rlsMode?: 'entitlement'|'static' }} params
- * @returns {Promise<string>} query results as formatted text for the Foundry agent to interpret
+ * @returns {Promise<string>} query results as formatted, natural-language text
  */
 export async function queryFabricAgent({ question, context, daxQuery, effectiveUserName, rlsMode }) {
   const query = daxQuery ?? pickDax(question);
