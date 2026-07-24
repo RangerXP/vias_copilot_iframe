@@ -281,6 +281,60 @@ if ((Test-ShouldRunPhase 'DataLoad') -and $lakehouse) {
         Write-Ok "Uploaded $($csv.Name) ($([math]::Round($bytes.Length / 1KB, 1)) KB)"
     }
 
+    if ($semanticModel) {
+        # Same class of bug as the notebook rebind below: Fabric Git sync does NOT rebind the
+        # semantic model's Direct Lake OneLake source path — expressions.tmdl still hardcodes the
+        # ORIGINAL template workspace/lakehouse GUIDs. Left as-is, every visual in the report fails
+        # with "Error fetching data for this visual" because the dataset tries to read from a
+        # lakehouse in a different (usually inaccessible) workspace. Rebind it first.
+        Write-Step "Re-binding semantic model's Direct Lake OneLake path to this workspace"
+        $fabricToken = Get-FabricToken
+        $headers = @{ Authorization = "Bearer $fabricToken"; 'Content-Type' = 'application/json' }
+
+        $getDefUri = "https://api.fabric.microsoft.com/v1/workspaces/$WorkspaceId/items/$($semanticModel.id)/getDefinition"
+        $getResp = Invoke-WebRequest -Uri $getDefUri -Method Post -Headers $headers -Body '{}' -SkipHttpErrorCheck
+        if ($getResp.StatusCode -eq 202) {
+            $opLoc = $getResp.Headers.Location
+            if ($opLoc -is [array]) { $opLoc = $opLoc[0] }
+            do {
+                Start-Sleep -Seconds 3
+                $op = Invoke-RestMethod -Uri $opLoc -Headers $headers
+            } while ($op.status -in 'Running', 'NotStarted')
+            $definition = (Invoke-RestMethod -Uri "$opLoc/result" -Headers $headers).definition
+        } else {
+            $definition = ($getResp.Content | ConvertFrom-Json).definition
+        }
+
+        $rebound = $false
+        foreach ($part in $definition.parts) {
+            if ($part.path -like '*expressions.tmdl*') {
+                $bytes = [System.Convert]::FromBase64String($part.payload)
+                $text = [System.Text.Encoding]::UTF8.GetString($bytes)
+                $text = $text -replace 'AzureStorage\.DataLake\("https://onelake\.dfs\.fabric\.microsoft\.com/[0-9a-fA-F-]+/[0-9a-fA-F-]+"', "AzureStorage.DataLake(`"https://onelake.dfs.fabric.microsoft.com/$WorkspaceId/$($lakehouse.id)`""
+                $newBytes = [System.Text.Encoding]::UTF8.GetBytes($text)
+                $part.payload = [System.Convert]::ToBase64String($newBytes)
+                $rebound = $true
+            }
+        }
+
+        if ($rebound) {
+            $updateUri = "https://api.fabric.microsoft.com/v1/workspaces/$WorkspaceId/items/$($semanticModel.id)/updateDefinition"
+            $updateBody = @{ definition = $definition } | ConvertTo-Json -Depth 20
+            $updResp = Invoke-WebRequest -Uri $updateUri -Method Post -Headers $headers -Body $updateBody -SkipHttpErrorCheck
+            if ($updResp.StatusCode -eq 202) {
+                $opLoc2 = $updResp.Headers.Location
+                if ($opLoc2 -is [array]) { $opLoc2 = $opLoc2[0] }
+                do {
+                    Start-Sleep -Seconds 3
+                    $op2 = Invoke-RestMethod -Uri $opLoc2 -Headers $headers
+                } while ($op2.status -in 'Running', 'NotStarted')
+            }
+            Write-Ok "Semantic model Direct Lake path re-bound to this workspace/lakehouse"
+        } else {
+            Write-Warn2 "Could not find expressions.tmdl part to re-bind Direct Lake source — report visuals may fail with 'Error fetching data'"
+        }
+    }
+
     if ($notebook) {
         # Fabric Git sync does NOT rebind a notebook's "default lakehouse" metadata to the
         # new workspace/lakehouse — the git-synced copy still points at the ORIGINAL template
