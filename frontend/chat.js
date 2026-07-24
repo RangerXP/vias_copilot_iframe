@@ -21,7 +21,15 @@ function setConversationId(id) {
 function appendMessage(role, text) {
   const div = document.createElement('div');
   div.className = `message ${role}`;
-  div.textContent = text;
+  // Assistant answers are server-generated HTML (server/services/fabricAgent.js escapes
+  // every interpolated value, including the user's own question when it's echoed back) —
+  // rendered richly (real tables/bar charts) via innerHTML. User-typed text is never
+  // treated as HTML, to avoid any risk of a malicious question being executed as markup.
+  if (role === 'assistant') {
+    div.innerHTML = text;
+  } else {
+    div.textContent = text;
+  }
   chatHistory.appendChild(div);
   chatHistory.scrollTop = chatHistory.scrollHeight;
   return div;
@@ -61,7 +69,11 @@ async function handleSend() {
     });
     const data = await res.json();
     setConversationId(data.conversationId);
-    thinkingEl.textContent = data.answer || data.error || 'No response.';
+    if (data.answer) {
+      thinkingEl.innerHTML = data.answer;
+    } else {
+      thinkingEl.textContent = data.error || 'No response.';
+    }
   } catch (err) {
     thinkingEl.textContent = `Error: ${err.message}`;
   } finally {

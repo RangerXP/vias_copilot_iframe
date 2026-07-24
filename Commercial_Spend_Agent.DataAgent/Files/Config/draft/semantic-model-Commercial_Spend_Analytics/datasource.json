@@ -1,11 +1,60 @@
 {
   "$schema": "https://developer.microsoft.com/json-schemas/fabric/item/dataAgent/definition/dataSource/1.0.0/schema.json",
-  "artifactId": "ba57cf3a-f128-9476-4e71-a087b7bc94fc",
-  "workspaceId": "00000000-0000-0000-0000-000000000000",
-  "dataSourceInstructions": "Primary data source. Use DAX measures for all numeric aggregations. Dimensions available: dim_date, dim_client, dim_country, dim_merchant, dim_mcc, dim_product, dim_segment, dim_approvalstatus. The fact_filtersession table captures host-app filter context for grounding agent responses to the user current report view.",
+  "artifactId": "ea32b1c1-ab24-4ca7-8530-e5792273b882",
+  "workspaceId": "b7055e05-e6b6-4ad4-90a6-a61ea3ef5ee4",
+  "dataSourceInstructions": "Primary data source: Commercial_Spend_Analytics (Direct Lake). Dimensions: dim_date, dim_client, dim_country, dim_merchant, dim_mcc, dim_product, dim_segment, dim_approvalstatus - all join 1:many to fact_commercialspend via their *Key column (TransactionDateKey, ClientKey, CountryKey, MerchantKey, MCCKey, ProductKey, SegmentKey, ApprovalStatusKey). fact_filtersession has NO relationships to any dimension - it stores serialized host-app filter state as strings for grounding only, never join or aggregate it as transactional data. Row-Level Security scopes fact_commercialspend to the caller's dim_client[HomeRegion] via CUSTOMDATA() - assume this is already applied. Use the 9 published measures for all aggregations; never SUM raw fact columns directly (e.g. use [Total Spend USD], not SUM(fact_commercialspend[SpendAmountUSD])).",
   "displayName": "Commercial_Spend_Analytics",
   "type": "semantic_model",
   "userDescription": "VISA Commercial Spend Analytics Direct Lake semantic model — 250,000 commercial card transactions with 8 dimensions and 9 DAX measures.",
   "metadata": null,
-  "elements": []
+  "elements": [
+    {
+      "display_name": "fact_commercialspend",
+      "type": "semantic_model.table",
+      "is_selected": true,
+      "description": "Grain: one row per synthetic commercial-card transaction. Core fact table for all spend/risk/approval analysis.",
+      "children": [
+        { "display_name": "Total Spend USD", "type": "semantic_model.measure", "is_selected": true, "description": "Sum of transaction spend in USD — the program's headline KPI." },
+        { "display_name": "Transaction Count", "type": "semantic_model.measure", "is_selected": true, "description": "Total number of transactions." },
+        { "display_name": "Average Ticket USD", "type": "semantic_model.measure", "is_selected": true, "description": "Total Spend ÷ Transaction Count." },
+        { "display_name": "Interchange Revenue USD", "type": "semantic_model.measure", "is_selected": true, "description": "Fee revenue earned per transaction — used for savings-opportunity analysis." },
+        { "display_name": "Fraud Exposure Score", "type": "semantic_model.measure", "is_selected": true, "description": "0-100 composite risk score; higher = riskier. Not a percentage." },
+        { "display_name": "High Fraud Transactions", "type": "semantic_model.measure", "is_selected": true, "description": "Count of transactions above the fraud threshold." },
+        { "display_name": "Approval Rate", "type": "semantic_model.measure", "is_selected": true, "description": "Approved ÷ Total transactions." },
+        { "display_name": "Decline Rate", "type": "semantic_model.measure", "is_selected": true, "description": "Declined ÷ Total transactions." },
+        { "display_name": "Spend YoY %", "type": "semantic_model.measure", "is_selected": true, "description": "Current vs. prior calendar year spend growth, using explicit Year filtering (not DATEADD)." }
+      ]
+    },
+    {
+      "display_name": "fact_filtersession",
+      "type": "semantic_model.table",
+      "is_selected": true,
+      "description": "Grain: one row per host-app filter-state change. Context-grounding only — describes what the user is currently viewing (page, active slicers, selected values). Never aggregate or report on this as spend data; has no relationships to any dimension table."
+    },
+    { "display_name": "dim_date", "type": "semantic_model.table", "is_selected": true, "description": "Calendar dimension; use Year/Quarter for trend and period-comparison questions." },
+    {
+      "display_name": "dim_client",
+      "type": "semantic_model.table",
+      "is_selected": true,
+      "description": "Client master data.",
+      "children": [
+        { "display_name": "HomeRegion", "type": "semantic_model.column", "is_selected": true, "description": "Client's primary operating region — drives Row-Level Security entitlement via CUSTOMDATA()." },
+        { "display_name": "GlobalAccountTier", "type": "semantic_model.column", "is_selected": true, "description": "Strategic size/importance ranking of the client." }
+      ]
+    },
+    { "display_name": "dim_merchant", "type": "semantic_model.table", "is_selected": true, "description": "Merchant/supplier master data." },
+    {
+      "display_name": "dim_mcc",
+      "type": "semantic_model.table",
+      "is_selected": true,
+      "description": "Merchant Category Code reference.",
+      "children": [
+        { "display_name": "MCCGroup", "type": "semantic_model.column", "is_selected": true, "description": "Rolled-up merchant category grouping — used for fraud/decline breakdowns." }
+      ]
+    },
+    { "display_name": "dim_segment", "type": "semantic_model.table", "is_selected": true, "description": "Client vertical/segment reference (Enterprise, Mid Market, Financial Services, Government, Healthcare, Retail)." },
+    { "display_name": "dim_country", "type": "semantic_model.table", "is_selected": true, "description": "Country/region reference." },
+    { "display_name": "dim_product", "type": "semantic_model.table", "is_selected": true, "description": "Card product/family reference." },
+    { "display_name": "dim_approvalstatus", "type": "semantic_model.table", "is_selected": true, "description": "Approval/decline/pending status reference." }
+  ]
 }

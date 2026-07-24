@@ -27,7 +27,7 @@ router.post('/', async (req, res) => {
 
     const businessContext = rawContext ? normalizeContext(rawContext) : null;
 
-    const answer = await queryFabricAgent({ question, context: businessContext, effectiveUserName });
+    const answer = await queryFabricAgent({ question, context: businessContext, effectiveUserName, conversationId });
 
     res.json({ answer, conversationId });
   } catch (err) {
