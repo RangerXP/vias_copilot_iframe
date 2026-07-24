@@ -452,6 +452,61 @@ if (Test-ShouldRunPhase 'ServicePrincipal') {
     Write-Ok "Service principal granted Admin on workspace"
 
     Write-Warn2 "Tenant setting 'Service principals can use Fabric APIs' must be enabled for this identity/security group in the Fabric Admin Portal — this cannot be set via API and must be confirmed by a Fabric/Power BI admin."
+
+    if ($lakehouse) {
+        # Direct Lake defaults to per-user SSO for its OneLake datasource, which is
+        # incompatible with SP-driven embed tokens carrying effectiveIdentity/customData
+        # (fails with 403 "Creating embed token with effective identity is not supported
+        # for this datasource"). Fixing this requires a fixed-identity cloud connection
+        # (SSO disabled) bound to the semantic model's datasource — see docs/design_notes.md
+        # Section 15/17. Connection CREATION and granting the running user visibility on it
+        # ARE both API-doable; only the final bind-to-dataset step is Fabric-portal-UI-only
+        # (no supported public API — confirmed, do not attempt to automate that part).
+        Write-Step "Creating fixed-identity Direct Lake cloud connection"
+        $connBody = @{
+            connectivityType = 'ShareableCloud'
+            displayName = "$WorkspaceName-FixedIdentity-DirectLake"
+            connectionDetails = @{
+                type = 'AzureDataLakeStorage'
+                creationMethod = 'AzureDataLakeStorage'
+                parameters = @(
+                    @{ dataType = 'Text'; name = 'server'; value = 'onelake.dfs.fabric.microsoft.com' },
+                    @{ dataType = 'Text'; name = 'path'; value = "$WorkspaceId/$($lakehouse.id)" }
+                )
+            }
+            privacyLevel = 'Organizational'
+            credentialDetails = @{
+                singleSignOnType = 'None'
+                connectionEncryption = 'NotEncrypted'
+                skipTestConnection = $false
+                credentials = @{
+                    credentialType = 'ServicePrincipal'
+                    tenantId = $TenantId
+                    servicePrincipalClientId = $ClientId
+                    servicePrincipalSecret = $ClientSecret
+                }
+            }
+        } | ConvertTo-Json -Depth 10
+        try {
+            $conn = Invoke-RestMethod -Uri "https://api.fabric.microsoft.com/v1/connections" -Method Post -Headers $headers -Body $connBody
+            Write-Ok "Fixed-identity connection created: $($conn.id)"
+
+            # The connection is owned only by the creating SP by default — the signed-in
+            # user running this script has NO role on it and won't see it in the portal's
+            # "Gateway and cloud connections" dropdown until explicitly granted access.
+            $signedInUserId = az ad signed-in-user show --query id -o tsv
+            if ($signedInUserId) {
+                $grantBody = @{ principal = @{ id = $signedInUserId; type = 'User' }; role = 'Owner' } | ConvertTo-Json
+                Invoke-RestMethod -Uri "https://api.fabric.microsoft.com/v1/connections/$($conn.id)/roleAssignments" -Method Post -Headers $headers -Body $grantBody | Out-Null
+                Write-Ok "Granted signed-in user Owner access to the connection (so it's visible in the portal)"
+            } else {
+                Write-Warn2 "Could not resolve signed-in user object ID — grant yourself access manually via POST /v1/connections/$($conn.id)/roleAssignments or you won't see the connection in the portal dropdown."
+            }
+            $script:FixedIdentityConnectionName = $conn.displayName
+        } catch {
+            Write-Warn2 "Could not create the fixed-identity connection automatically ($($_.Exception.Message)) — you'll need to create it manually in the Fabric portal (Settings > Gateway and cloud connections > New connection, type Azure Data Lake Storage Gen2, Service Principal auth, SSO off)."
+        }
+    }
 }
 
 # ── Phase: Fix up Data Agent datasource ────────────────────────────────────────
@@ -486,5 +541,9 @@ if (Test-ShouldRunPhase 'WriteEnv') {
 }
 
 Write-Step "Setup complete"
-Write-Info "Remaining manual step (no supported API): open the semantic model in the Fabric portal and confirm its Direct Lake connection uses a fixed identity (not sign-in credentials) so the embed service principal can query it without per-user SSO."
+if ($script:FixedIdentityConnectionName) {
+    Write-Info "Remaining manual step (no supported API): open the semantic model in the Fabric portal > Settings > Gateway and cloud connections, select connection '$($script:FixedIdentityConnectionName)' for the AzureDataLakeStorage datasource (already created + shared with your account), then Apply."
+} else {
+    Write-Info "Remaining manual step (no supported API): open the semantic model in the Fabric portal and confirm its Direct Lake connection uses a fixed identity (not sign-in credentials) so the embed service principal can query it without per-user SSO."
+}
 Write-Info "Then run: npm install && npm start"
