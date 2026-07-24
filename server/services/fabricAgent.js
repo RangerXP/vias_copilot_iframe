@@ -840,6 +840,21 @@ export async function queryFabricAgent({ question, context, daxQuery, effectiveU
     return formatExhaustiveAnswer({ page: context.page, pageMeta, sections, contextNote });
   }
 
+  // Preferred conversational path: an in-process LLM orchestrator (Azure OpenAI chat
+  // completions + function calling) whose only tool is the DAX-shape catalog below,
+  // executed through the same RLS-aware executeDax() as every other path in this file.
+  // See docs/design_notes.md Section 20 for why this replaced re-introducing a full
+  // Azure AI Foundry Agent resource, and why the native Fabric Data Agent (below,
+  // USE_DATA_AGENT) cannot be used for RLS-sensitive conversations.
+  if (!daxQuery && process.env.USE_LLM_ORCHESTRATOR === 'true') {
+    try {
+      const { runOrchestratedQuery } = await import('./llmOrchestrator.js');
+      return await runOrchestratedQuery({ question, context, effectiveUserName, rlsMode, conversationId });
+    } catch (err) {
+      console.error('[fabricAgent] LLM orchestrator query failed, falling back to direct DAX:', err.message);
+    }
+  }
+
   if (!daxQuery && process.env.USE_DATA_AGENT === 'true') {
     try {
       return await queryDataAgentConversation({ question, context, conversationId });
@@ -852,3 +867,10 @@ export async function queryFabricAgent({ question, context, daxQuery, effectiveU
   const rows = await executeDax(query, { effectiveUserName, rlsMode });
   return formatAnswer({ question, rows, contextNote });
 }
+
+// Exported so server/services/llmOrchestrator.js can let an LLM choose a DAX shape by
+// name and execute it through the SAME RLS-aware executeDax()/runXmlaQuery() path used
+// everywhere else in this file — the LLM never sees or controls effectiveUserName/
+// rlsMode/CustomData, so this cannot become an RLS-bypass surface the way the native
+// Fabric Data Agent's conversational API is (see queryDataAgentConversation above).
+export { executeDax, DAX_SHAPES, escapeHtml, describeContext };
