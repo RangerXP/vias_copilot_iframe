@@ -23,7 +23,8 @@ UNION(
   ROW("Metric", "Average Ticket USD",   "Value", FORMAT([Average Ticket USD],   "$#,##0.00")),
   ROW("Metric", "Approval Rate",        "Value", FORMAT([Approval Rate],        "0.0%")),
   ROW("Metric", "Interchange Revenue USD", "Value", FORMAT([Interchange Revenue USD], "$#,##0.00")),
-  ROW("Metric", "Fraud Exposure Score", "Value", FORMAT([Fraud Exposure Score], "0.0"))
+  ROW("Metric", "Fraud Exposure Score", "Value", FORMAT([Fraud Exposure Score], "0.0")),
+  ROW("Metric", "Spend YoY %",          "Value", FORMAT([Spend YoY %],          "+0.0%;-0.0%;0.0%"))
 )
 `.trim();
 
@@ -204,6 +205,137 @@ const DAX_SHAPES = {
 function isExploratoryQuestion(question) {
   const q = (question ?? '').toLowerCase();
   return /what (am i|do you|can you) (see|looking at|showing|seeing)|what('?s| is) (this|on this|here|going on)|tell me about (this|the) page|explain (this|the) page|summar(y|ize)( this| the)? page|overview of (this|the) page|what should i know|walk me through|give me a (summary|recap|rundown)/.test(q);
+}
+
+/**
+ * True for "which report/page/dashboard should I look at" navigation questions
+ * (e.g. "what reports best define how spend is distributed across the business?").
+ * This is a distinct question class from isExploratoryQuestion (which asks about the
+ * CURRENT page) and from pickDax (which routes to a data shape) — it's answered purely
+ * from PAGE_META, never from DAX or the live Data Agent, since neither has visibility
+ * into the Fabric Report's page/navigation structure (see stage_config.json's
+ * RESPONSE FORMAT section, which tells the Data Agent to defer this question type).
+ */
+function isReportNavigationQuestion(question) {
+  const q = (question ?? '').toLowerCase();
+  return /\b(report|reports|page|pages|dashboard|dashboards)\b/.test(q) &&
+    /\b(which|what|best|recommend|recommended|should i|where)\b/.test(q);
+}
+
+// Words too generic to count as topic signal when matching a question against
+// PAGE_META purposes (scorePageRelevance below).
+const RELEVANCE_STOPWORDS = new Set([
+  'what', 'which', 'best', 'define', 'defines', 'how', 'are', 'the', 'that', 'this',
+  'for', 'with', 'and', 'across', 'business', 'report', 'reports', 'page', 'pages',
+  'dashboard', 'dashboards', 'show', 'shows', 'showing', 'should', 'recommend',
+  'recommended', 'where', 'about', 'does', 'from', 'into', 'you', 'me', 'can',
+  'give', 'tell'
+]);
+
+function scorePageRelevance(question, page, meta) {
+  const haystack = `${page} ${meta.purpose}`.toLowerCase();
+  const words = (question.toLowerCase().match(/[a-z]{3,}/g) ?? [])
+    .filter(w => !RELEVANCE_STOPWORDS.has(w));
+  let score = 0;
+  for (const w of words) {
+    if (haystack.includes(w)) score += 1;
+  }
+  return score;
+}
+
+/**
+ * Answer a report-navigation question (isReportNavigationQuestion) purely from
+ * PAGE_META, ranking pages by keyword overlap with the question and rendering a
+ * short list plus a relevance bar chart (renderHtmlBars) so the answer still ends
+ * with a small graphic, matching the exploratory-answer pattern. Returns null when
+ * nothing scores, so the caller can fall through to the normal DAX/Data Agent path.
+ */
+function answerReportNavigation(question) {
+  const scored = Object.entries(PAGE_META)
+    .map(([page, meta]) => ({ page, meta, score: scorePageRelevance(question, page, meta) }))
+    .filter(e => e.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 4);
+
+  if (!scored.length) return null;
+
+  const intro = `<p>Here's what best answers that, based on what each report page is designed to show:</p>`;
+  const list = `<ul class="chat-page-list">${scored
+    .map(e => `<li><strong>${escapeHtml(e.page)}</strong> \u2014 ${escapeHtml(e.meta.purpose)}</li>`)
+    .join('')}</ul>`;
+  const bars = renderHtmlBars(
+    scored.map(e => ({ Page: e.page, Relevance: e.score })),
+    'Page',
+    'Relevance'
+  );
+  const graphic = bars ? `<h4>Relevance to your question</h4>${bars}` : '';
+  return `${intro}${list}${graphic}`;
+}
+
+/**
+ * Synthesize 2-4 short, business-narrative "key takeaways" from a page's Key metrics
+ * section (summary shape) plus its first breakdown section, so exhaustive page answers
+ * lead with an interpreted headline instead of a flat KPI dump (docs/demo_script.md's
+ * concise, metric-embedded tone). Returns [] when there's no Key metrics section to
+ * draw from (e.g. a page whose only shape is a breakdown).
+ */
+function buildKeyTakeaways(sections) {
+  const takeaways = [];
+  const summarySection = sections.find(s => s.label === 'Key metrics');
+  const breakdownSection = sections.find(s => s.label !== 'Key metrics' && s.rows?.length);
+
+  if (summarySection?.rows?.length) {
+    const metrics = Object.fromEntries(summarySection.rows.map(r => [r.Metric, r.Value]));
+    const totalSpend = metrics['Total Spend USD'];
+    const txCount = metrics['Transaction Count'];
+    const avgTicket = metrics['Average Ticket USD'];
+    if (totalSpend && txCount) {
+      takeaways.push(`Total spend is ${totalSpend} across ${txCount} transactions${avgTicket ? ` (avg ticket ${avgTicket})` : ''}.`);
+    }
+
+    const approval = metrics['Approval Rate'];
+    const fraud = metrics['Fraud Exposure Score'];
+    if (approval) {
+      const approvalNum = parseFloat(approval);
+      const tone = approvalNum >= 93 ? 'strong' : approvalNum >= 88 ? 'healthy' : 'a watch item';
+      takeaways.push(`Approval rate is ${tone} at ${approval}${fraud ? `, with a fraud exposure score of ${fraud} on a 0\u2013100 scale` : ''}.`);
+    }
+
+    const yoy = metrics['Spend YoY %'];
+    if (yoy) {
+      const yoyNum = parseFloat(yoy);
+      const direction = yoyNum > 0 ? 'up' : yoyNum < 0 ? 'down' : 'flat';
+      const flag = yoyNum < 0 ? ' \u2014 worth a closer look' : yoyNum > 0 ? ', a healthy growth signal' : '';
+      takeaways.push(`Spend is ${direction} ${Math.abs(yoyNum).toFixed(1)}% year-over-year${flag}.`);
+    }
+  }
+
+  if (breakdownSection) {
+    const [labelKey, ...valueKeys] = Object.keys(breakdownSection.rows[0]);
+    const spendKey = valueKeys.find(k => /spend|revenue/i.test(k)) ?? valueKeys[0];
+    if (spendKey) {
+      const sorted = [...breakdownSection.rows].sort(
+        (a, b) => parseNumeric(b[spendKey]) - parseNumeric(a[spendKey])
+      );
+      const top = sorted[0];
+      const total = sorted.reduce((sum, r) => sum + parseNumeric(r[spendKey]), 0);
+      if (top && total > 0) {
+        const share = Math.round((parseNumeric(top[spendKey]) / total) * 100);
+        takeaways.push(
+          `${top[labelKey]} leads ${breakdownSection.label.toLowerCase()} at ${formatMeasureValue(spendKey, top[spendKey])} (~${share}% of the total shown here).`
+        );
+      }
+    }
+  }
+
+  return takeaways;
+}
+
+/** Parse a formatted ("$74,812,278.37") or raw numeric cell value into a plain number. */
+function parseNumeric(value) {
+  if (typeof value === 'number') return value;
+  const num = parseFloat(String(value ?? '').replace(/[$,%]/g, ''));
+  return Number.isFinite(num) ? num : 0;
 }
 
 let msalClient = null;
@@ -579,13 +711,21 @@ function renderHtmlBars(rows, labelKey, valueKey, maxRows = 6) {
 
 /**
  * Render the "exhaustive" answer for an exploratory question (isExploratoryQuestion) on
- * a known report page: a business-purpose framing sentence (PAGE_META, grounded in
- * docs/demo_script.md's design intent for each page) followed by every DAX shape that
- * page's visuals cover, instead of just the single shape a keyword match would pick.
+ * a known report page. Structure (per user feedback: lead with takeaways, not a KPI
+ * dump; keep the deep dive concise and business-framed, matching docs/demo_script.md's
+ * tone): (1) one-sentence page-purpose framing (PAGE_META), (2) a "Key takeaways"
+ * callout synthesized from the data (buildKeyTakeaways), (3) a deep-dive section per
+ * DAX shape the page's visuals cover, each with its own short business-context caption
+ * instead of a bare header.
  */
 function formatExhaustiveAnswer({ page, pageMeta, sections, contextNote }) {
   const filterSuffix = contextNote ? ` <span class="chat-filter-note">(${escapeHtml(contextNote)})</span>` : '';
   const intro = `<p>You're viewing the <strong>${escapeHtml(page)}</strong> page${filterSuffix}. This page focuses on ${escapeHtml(pageMeta.purpose)}</p>`;
+
+  const takeaways = buildKeyTakeaways(sections);
+  const takeawaysBlock = takeaways.length
+    ? `<h4>Key takeaways</h4><ul class="chat-takeaways">${takeaways.map(t => `<li>${escapeHtml(t)}</li>`).join('')}</ul>`
+    : '';
 
   const blocks = sections.map(({ label, rows }) => {
     if (!rows.length) return `<h4>${escapeHtml(label)}</h4><p>No data for the current filter context.</p>`;
@@ -602,7 +742,8 @@ function formatExhaustiveAnswer({ page, pageMeta, sections, contextNote }) {
     return `<h4>${escapeHtml(label)}</h4>${table}${bars}`;
   });
 
-  return `${intro}${blocks.join('')}`;
+  const deepDiveHeading = takeawaysBlock ? '<h4 class="chat-deep-dive-heading">Deep dive</h4>' : '';
+  return `${intro}${takeawaysBlock}${deepDiveHeading}${blocks.join('')}`;
 }
 
 /**
@@ -652,30 +793,28 @@ async function executeDax(query, { effectiveUserName, rlsMode } = {}) {
  * Execute a DAX query against the Fabric semantic model and return a natural-language
  * answer for the chat UI.
  *
- * If USE_DATA_AGENT=true, questions are routed to the live Commercial_Spend_Agent
- * Fabric Data Agent (native LLM-backed NL->DAX, see queryDataAgentConversation above)
- * first; any failure (not configured, not published, timeout, etc.) falls back to the
- * deterministic DAX_SHAPES/pickDax() path below so the chat never hard-fails.
- *
- * For exploratory questions on a known report page (isExploratoryQuestion + PAGE_META),
- * the fallback path runs every DAX shape that page's visuals cover (in parallel) and
- * returns a single business-grounded answer covering all of them, instead of one
- * keyword-matched shape.
+ * "What do you see" / page-summary questions (isExploratoryQuestion + known PAGE_META)
+ * always get the deterministic, richly-formatted answer (business-purpose framing +
+ * key takeaways + a table and small bar-chart graphic per DAX shape the current page's
+ * visuals cover) rather than the live Data Agent's synthesized paragraph — the
+ * structured tabular + graphic view is what the report-context summary needs, so it
+ * takes priority for this question class. Report-navigation questions ("which report
+ * page best shows X") are answered purely from PAGE_META (isReportNavigationQuestion),
+ * ahead of everything else, since neither the DAX shapes nor the live Data Agent have
+ * visibility into the Fabric Report's page structure. The live Data Agent is used for
+ * other, more open-ended questions.
  *
  * @param {{ question: string, context?: object, daxQuery?: string, effectiveUserName?: string, rlsMode?: 'entitlement'|'static', conversationId?: string }} params
  * @returns {Promise<string>} query results as formatted, natural-language text
  */
 export async function queryFabricAgent({ question, context, daxQuery, effectiveUserName, rlsMode, conversationId }) {
-  if (!daxQuery && process.env.USE_DATA_AGENT === 'true') {
-    try {
-      return await queryDataAgentConversation({ question, context, conversationId });
-    } catch (err) {
-      console.error('[fabricAgent] Data Agent query failed, falling back to direct DAX:', err.message);
-    }
-  }
-
   const contextNote = describeContext(context);
   const pageMeta = context?.page ? PAGE_META[context.page] : null;
+
+  if (!daxQuery && isReportNavigationQuestion(question)) {
+    const navAnswer = answerReportNavigation(question);
+    if (navAnswer) return navAnswer;
+  }
 
   if (!daxQuery && pageMeta && isExploratoryQuestion(question)) {
     const sections = await Promise.all(
@@ -686,6 +825,14 @@ export async function queryFabricAgent({ question, context, daxQuery, effectiveU
       })
     );
     return formatExhaustiveAnswer({ page: context.page, pageMeta, sections, contextNote });
+  }
+
+  if (!daxQuery && process.env.USE_DATA_AGENT === 'true') {
+    try {
+      return await queryDataAgentConversation({ question, context, conversationId });
+    } catch (err) {
+      console.error('[fabricAgent] Data Agent query failed, falling back to direct DAX:', err.message);
+    }
   }
 
   const query = daxQuery ?? pickDax(question);

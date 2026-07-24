@@ -78,7 +78,7 @@ body {
 
 /* ── Chat pane ────────────────────────────────── */
 #chat-container {
-  flex: 0 0 360px;
+  flex: 0 0 500px;
   display: flex;
   flex-direction: column;
   background: #fff;
@@ -106,7 +106,7 @@ body {
 }
 
 .message {
-  max-width: 88%;
+  max-width: 99%;
   padding: 10px 14px;
   border-radius: 14px;
   font-size: 14px;
@@ -155,12 +155,58 @@ body {
   color: #6b7280;
 }
 
+/* ── Key takeaways callout (server/services/fabricAgent.js buildKeyTakeaways) ── */
+.chat-takeaways {
+  margin: 2px 0 10px;
+  padding: 10px 12px;
+  list-style: none;
+  background: #eef6fd;
+  border-left: 3px solid #0078d4;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.chat-takeaways li {
+  margin: 0 0 6px;
+}
+
+.chat-takeaways li:last-child {
+  margin-bottom: 0;
+}
+
+.chat-takeaways li::before {
+  content: '\2022';
+  color: #0078d4;
+  font-weight: 700;
+  margin-right: 6px;
+}
+
+.chat-deep-dive-heading {
+  margin-top: 14px;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* ── Report-navigation answers (server/services/fabricAgent.js answerReportNavigation) */
+.chat-page-list {
+  margin: 2px 0 10px;
+  padding-left: 18px;
+  font-size: 13px;
+}
+
+.chat-page-list li {
+  margin: 0 0 6px;
+}
+
 /* ── Rich answer tables (server/services/fabricAgent.js renderHtmlTable) ────── */
 .chat-table {
   border-collapse: collapse;
   width: 100%;
   margin: 2px 0 12px;
   font-size: 13px;
+  table-layout: auto;
+  display: table;
+  overflow-x: auto;
 }
 
 .chat-table th,
@@ -168,6 +214,7 @@ body {
   padding: 5px 10px;
   border-bottom: 1px solid #e5e7eb;
   text-align: left;
+  white-space: nowrap;
 }
 
 .chat-table th {
