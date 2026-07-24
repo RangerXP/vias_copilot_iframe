@@ -369,6 +369,19 @@ async function getPowerBIToken() {
 // (Fabric portal -> Commercial_Spend_Agent -> Publish -> Settings) — this is not
 // discoverable via the Fabric REST API (Get/Publish DataAgent responses do not
 // include it), so it must be captured manually once and stored in .env.
+//
+// *** KNOWN RLS GAP — USE_DATA_AGENT DEFAULTS TO false BECAUSE OF THIS ***
+// This path has NO per-user RLS/entitlement scoping. The assistants/threads/messages/
+// runs API has no parameter for effectiveUserName/rlsMode/CustomData (unlike
+// runXmlaQuery's Roles=Role_Entitlement + CustomData=<value> connection-string
+// properties). The Data Agent always queries under the semantic model's fixed-identity
+// SP connection (workspace Admin, full access), so every answer is UNFILTERED by
+// HomeRegion regardless of which demo customer is logged in. Confirmed live
+// (2026-07-28): "How much interchange revenue have we earned in total?" returned the
+// full-dataset grand total ($1,106,210.13) instead of the North America RLS-scoped
+// figure ($229,610.09) for that session. Do not set USE_DATA_AGENT=true in any
+// environment where different callers must see different RLS-scoped data until a
+// verified per-user pass-through mechanism exists for this API.
 const FABRIC_AGENT_API_VERSION = '2024-05-01-preview';
 const FABRIC_AGENT_POLL_INTERVAL_MS = 1500;
 const FABRIC_AGENT_TIMEOUT_MS = 45000;
